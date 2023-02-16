@@ -1,5 +1,6 @@
 
 
+
   Plan for text searching.  I propose to create a standalone Python package for this that could have
   multiple usage.  e.g. we can call the package fasttextsearch; it would have a C++ extension, we could
   perhaps use lilcom as the starting point in terms of package structure (unless someone has another idea);
@@ -14,7 +15,13 @@
   the symbol type, and int32 and int64 for the index type.)
 
   The most technical part, for creating the suffix array (written in C) would look like this from
-  its Python interface (be careful, it is a little quirky to save a copy):
+  its Python interface (be careful, it is a little quirky to save a copy).
+  There is some code in k2 (see nbest.h) that we can just copy for the internals of this, which has already been tested.
+  In fact we don't really need it in k2 so we could remove it from there at some point.
+  (this project has other potential users from k2, and I want to separate it as k2 is always going to
+  be harder to install).
+
+
 
 
    def create_suffix_array(input: np.ndarray) -> np.ndarray:
