@@ -40,8 +40,8 @@
             symbols somehow to achieve this).  It must be followed by 3 zeros, for reasons
             related to how the algorithm works.
       Returns:
-            Returns a suffix array of type np.uint32 (if the size of the input permits)
-            or np.uint64 if not, of shape (seq_len,).  This will consist of some permutation of the elements
+            Returns a suffix array of type np.uint64,
+            of shape (seq_len,).  This will consist of some permutation of the elements
             0 .. seq_len - 1.
       """
 
@@ -50,7 +50,7 @@
 @dataclass
 class TextSource:
       name: str  # might be a filename
-      text: np.ndarray  # the text, probably as a sequence of bytes but could be utf-32.
+      text: np.ndarray  # the text, probably as a sequence of bytes but could be utf-32 i.e. np.uint32.
                         # Length of the array may not be >= 2**32.
 
 
@@ -66,7 +66,7 @@ class SourcedText:
       text: np.ndarray  # the text, a 1-d array, probably a sequence of bytes but could be uint32 representing utf-32.
                         # Note: this text array is 'owned' here so it can be modified by the user.
       pos: np.ndarray  # the text position in the original source for each element of the text.  Of type uint32;
-      src: Union[int, np.ndarray]   # the source-text index for each element of the text.
+      doc: Union[int, np.ndarray]   # the document index for each element of the text.
                                     # the np.ndarray would be of type uint32.
       sources: TextSource  # for reference, the list of available text sources that this text might come from.
 
@@ -94,7 +94,11 @@ def remove(t: SourcedText, keep: np.ndarray) -> SourcedText:
 # note: for things like mapping bytes to e.g. lower-case or finding the positions to remove()
 # because of, for example, repeated spaces or punctuation, the user can do this manually
 # using normal Python and numpy operations.  This might get a little more complicated for
-# languages that use lots of non-ASCII code points, but
+# languages that use lots of non-ASCII code points; should be doable though.
+#
+#
+
+#
 
 
 
@@ -106,17 +110,23 @@ def remove(t: SourcedText, keep: np.ndarray) -> SourcedText:
        """
        Assuming the suffix array was created from a text where the first `query_len`
        positions represented the query text and the remaining positions represent
-       the reference text, return a list indicating the immediately preceding and
-       following positions in the reference text for each position in the query text.
-       (Note: the query and reference texts could each represent multiple sequences,
-       but that is handled by other code.)
+       the reference text, return a list indicating, for each suffix position in the query
+       text, the two suffix positions in the reference text that immediately precede and
+       follow it lexicographically.  (I think suffix position refers to the last character
+       of a suffix).     This is easy to do from the suffix array without computing,
+       for example, the LCP array; and it produces exactly 2 matches per position in the
+       query text, which is also convenient.
+
+       (Note: the query and reference texts could each represent multiple separate
+       sequences, but that is handled by other code; class SourcedText keeps track of that
+       information.)
 
        Args:
         suffix_array: A suffix array as created by create_suffix_array(), of dtype
            np.uint32 or np.uint64 and shape (seq_len,).
 
-         query_len: A number 0 <= query_len < seq_len, indicating the length of
-           the query part of the text that was used to create `suffix_array`.
+         query_len: A number 0 <= query_len < seq_len, indicating the length in symbols
+          (likely bytes) of the query part of the text that was used to create `suffix_array`.
 
        Returns an np.ndarray of shape (query_len * 2,), of the same dtype as suffix_array,
          in which positions 2*i and 2*i + 1 represent the two positions in the original
@@ -147,37 +157,109 @@ def remove(t: SourcedText, keep: np.ndarray) -> SourcedText:
 
 
  ===
-     def find_candidate_regions(suffix_array: np.ndarray, ...
+     def find_candidate_matches(close_matches: np.ndarray,
+                                text: SourcedText,
+                                length_ratio: float = 2.0,
+                                num_candidates: int = 5) -> List[List[Tuple[int, int]]]:
+       """
+       Find candidate regions in reference document that could be good matches for
+       each query document.
 
-  [TODO: finish this. uses the output of find_close_matches to locate candidate regions for
+       Args:
+          close_matches: an np.ndarray of shape (2*tot_query_symbols,) as returned by
+             find_close_matches(), indicating two close matches within the reference
+             text for each symbol in the query documents.
+          text:  The SourcedText corresponding to the query and reference documents
+             combined; needed for its `doc` member which can be assumed to be an np.ndarray.
+          length_ratio: indicates the maximum candidate-region length, which will be reduced
+             if the matching reference document was shorter than this.
+           num_candidates:  the number of candidate regions to find for each query
+             document.
+       Returns:
+          A list, one per query document, of close matches, where each close match
+          is a (begin, end) position within `text`.
+       """
+
+  [TODO: finish this. uses the output of find_close_matches to locate candidate matches for
   Levenshtein or Smith-Waterman alignment.  This is done separately for each query text.
 
-  Basically we sort the output of find_close_matches and we are looking for pieces of
-  source text with a certain maximum length (e.g. reference_chunk_length = 4 times the length of the query text), that
-  have the most "hits" in the output of find_close_matches.  basic algorithm would be a linear-time
-  thing where we go through the sorted close-matches, always keeping track of the end-position in
+  We process pieces of `close_matches` separately for each query document (the number of query
+  documents can be found from the size of close_matches and from text.doc).
 
-  # start_pos, end_pos  are indexes into the 'reference' part
-   int start_pos = 0, end_pos = 0;  p
+  It will be helpful to go through the elements of
+  'text.doc' and accumulate something equivalent to k2's "row_splits" (maybe just
+  for the query documents); this can be used
+  for a few things in this function, such as iterating over the query documents
 
-   int j = 0;
-   for ( i = 0;  i < num_matches; ..)  {
+  We are looking for the up-to-`num_candidates` pieces of reference text of length at most
+  (this_query_len * length_ratio) that have the largest number of "hits" in the output of
+  find_close_matches, subject to a "non-overlapping" constraint.  This may not be formally
+  very well-defined when we consider the "non-overlapping" constraint but approximate
+  solutions are OK.
+
+  The basic algorithm would be a linear-time thing where, for each query
+  document, we go through the sorted close-matches, always keeping track of the next element
+  of the sorted close-matches that is no more than
+
+
+   for (int q = 0; q < num_query_docs; ++q) {
+      matches_start_pos = 2 * row_splits[q];
+      matches_end_pos = 2 * row_splits[q+1];
+
+
+      int j = matches_start_pos;
+      for (i = matches_start_pos;  i < matches_end_pos; ++i) {
        # find the current candidate start-position in the reference part of the full text (this is
-       # just a couple of array lookups where we find the reference document src-index (i.e. document-index)
+       # just a couple of array lookups where we find the reference document index
        # and the position 'pos' within that reference document.
 
        # Then we keep advancing j as far as we can while ensuring that the
        # position within that reference document is not more than `reference_chunk_length`
-       # greater than that of i and the document-index is not different from that of i.
+       # greater than the position for i and the document-index is not different from that of i.
 
        # j - i (i.e. the number of matches ) is the metric we are trying to maximize.
        # basically we will keep up to a specified number of 'best' matches, e.g. 5, with the limitation
-       # that they cannot overlap (if they overlap, we take the better one).
-   }
+       # that they cannot overlap (if they overlap, we take the better one).  no need for fancy
+       # algorithms here, we can just assume num_candidates is small and use iteration over
+       # that number.
+    }
+
+ If the core part of this is in C++, it might be easiest to format the output as an ndarray conceptually
+ of shape (num_query_docs, num_candidates, 2) which can probably be just treated as a uint64_t*
+ within the C++ code.
+
 
 
 
 ====
   Next: stuff for Levenshtein or Smith-Waterman alignment.
+
+  Once we have the candidate matches:
+     We extend them slightly to the left and right, e.g. by 10 + query_length // 8, this can be done
+     at a fairly outer level of the code.
+
+     We match each of them with the query text using a Levenshtein-like alignment process that
+     allows un-penalized insertions of reference text at the very beginning, or very end, of
+     the query text.   (easy to do: just initialize with zeros along one side of the array, and
+     once all scores are computed, take minimum from other side of the array).
+     This will return the alignment and the corresponding score.
+     The score can be used to find the best-matching region, and the alignment (probably
+     pairs of: ref-position, query-position) can be used to find the beginning and end
+     position in the reference text.  (I think we can just convert the alignments from
+     np.ndarray to python objects and use Python code to find the beginning/end positions,
+     since this part is linear time).
+
+
+ The output that we'll be writing to disk would then be, for each query text:
+    (query_length, num_errs, reference_name, reference_first_byte, reference_last_byte).
+
+ To find the reference_first_byte and reference_last_byte, we will use the "pos" elements
+ in the SourcedText objects.  This is why we added the "pos" elements, because we need
+ to backtrack through the normalization process, which would otherwise be nontrivial.
+
+
+
+
+
 
 ====
