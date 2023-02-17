@@ -258,8 +258,16 @@ def remove(t: SourcedText, keep: np.ndarray) -> SourcedText:
  to backtrack through the normalization process, which would otherwise be nontrivial.
 
 
+=====
+ A note on the larger plan:
 
-
+  You might be worried about text-normalization issues, and how we will align things like digits
+  that may look very diffrent between normalized and un-normalized text, i.e. between our automatic
+  transcript and the reference text.
+  What I am planning is that most of the time,  the query texts will be fairly long, like 30 seconds
+  or a minute, and even if there are lots of digits internally, if there are words at the start and end
+  we should still find the right match in the reference text.  Then we can later use algorithms
+  involving the acoustics to do further cleanup of the reference text.
 
 
 ====
