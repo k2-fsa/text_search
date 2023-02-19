@@ -1,0 +1,1 @@
+from _fasttextsearch import create_suffix_array
