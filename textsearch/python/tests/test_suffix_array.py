@@ -33,9 +33,9 @@ class TestSuffixArray(unittest.TestCase):
         for dtype in [np.int8, np.int16, np.int32]:
             array = np.array([3, 2, 1, np.iinfo(dtype).max - 1, 0, 0, 0], dtype=dtype)
             suffix_array = create_suffix_array(array)
-            expected_array = np.array([2, 1, 0, 3], dtype=dtype)
+            expected_array = np.array([2, 1, 0, 3], dtype=np.int64)
             self.assertTrue((suffix_array == expected_array).all())
-            self.assertTrue(suffix_array.dtype == dtype)
+            self.assertTrue(suffix_array.dtype == np.int64)
 
 if __name__ == '__main__':
     unittest.main()

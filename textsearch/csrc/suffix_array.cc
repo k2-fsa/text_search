@@ -136,11 +136,9 @@ template <typename T> void CreateSuffixArray(const T *text, T n, T K, T *SA) {
     }
   }
 }
-// Instantiate template for int32_t, int16_t and int8_t
+// Instantiate template for int64_t and int32_t
+template void CreateSuffixArray(const int64_t *text, int64_t n, int64_t K,
+                                int64_t *SA);
 template void CreateSuffixArray(const int32_t *text, int32_t n, int32_t K,
                                 int32_t *SA);
-template void CreateSuffixArray(const int16_t *text, int16_t n, int16_t K,
-                                int16_t *SA);
-template void CreateSuffixArray(const int8_t *text, int8_t n, int8_t K,
-                                int8_t *SA);
 } // namespace fasttextsearch
