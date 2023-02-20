@@ -213,19 +213,19 @@ This can be accomplished in a linear pass over the suffix array, e.g. (ignoring 
 
       int j = matches_start_pos;
       for (i = matches_start_pos;  i < matches_end_pos; ++i) {
-       # find the current candidate start-position in the reference part of the full text (this is
-       # just a couple of array lookups where we find the reference document index
-       # and the position 'pos' within that reference document.
+       // find the current candidate start-position in the reference part of the full text (this is
+       // just a couple of array lookups where we find the reference document index
+       // and the position 'pos' within that reference document.
 
-       # Then we keep advancing j as far as we can while ensuring that the
-       # position within that reference document is not more than `reference_chunk_length`
-       # greater than the position for i and the document-index is not different from that of i.
+       // Then we keep advancing j as far as we can while ensuring that the
+       // position within that reference document is not more than `reference_chunk_length`
+       // greater than the position for i and the document-index is not different from that of i.
 
-       # j - i (i.e. the number of matches ) is the metric we are trying to maximize.
-       # basically we will keep up to a specified number of 'best' matches, e.g. 5, with the limitation
-       # that they cannot overlap (if they overlap, we take the better one).  no need for fancy
-       # algorithms here, we can just assume num_candidates is small and use iteration over
-       # that number.
+       // j - i (i.e. the number of matches ) is the metric we are trying to maximize.
+       // basically we will keep up to a specified number of 'best' matches, e.g. 5, with the limitation
+       // that they cannot overlap (if they overlap, we take the better one).  no need for fancy
+       // algorithms here, we can just assume num_candidates is small and use iteration over
+       // that number.
     }
 ```
  If the core part of this is in C++, it might be easiest to format the output as an ndarray conceptually
