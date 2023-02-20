@@ -26,16 +26,15 @@ import numpy as np
 from textsearch import create_suffix_array
 
 
-
 class TestSuffixArray(unittest.TestCase):
 
     def test_basic(self):
-        for dtype in [np.int8, np.int16, np.int32]:
+        for dtype in [np.uint8, np.uint16, np.uint32]:
             array = np.array([3, 2, 1, np.iinfo(dtype).max - 1, 0, 0, 0], dtype=dtype)
             suffix_array = create_suffix_array(array)
-            expected_array = np.array([2, 1, 0, 3], dtype=np.int64)
+            expected_array = np.array([2, 1, 0, 3], dtype=np.uint64)
             self.assertTrue((suffix_array == expected_array).all())
-            self.assertTrue(suffix_array.dtype == np.int64)
+            self.assertTrue(suffix_array.dtype == np.uint64)
 
 if __name__ == '__main__':
     unittest.main()

@@ -136,9 +136,11 @@ template <typename T> void CreateSuffixArray(const T *text, T n, T K, T *SA) {
     }
   }
 }
-// Instantiate template for int64_t and int32_t
-template void CreateSuffixArray(const int64_t *text, int64_t n, int64_t K,
-                                int64_t *SA);
+
+// Instantiate template for uint64_t, needed by python wrapper
+template void CreateSuffixArray(const uint64_t *text, uint64_t n, uint64_t K,
+                                uint64_t *SA);
+// For testing purpose
 template void CreateSuffixArray(const int32_t *text, int32_t n, int32_t K,
                                 int32_t *SA);
 } // namespace fasttextsearch
