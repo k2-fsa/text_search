@@ -32,7 +32,8 @@ Returns:
 )doc";
 
 template <typename T>
-static py::array_t<uint64_t> PybindSuffixArrayHelper(py::array_t<T> &input) {
+static py::array_t<uint64_t>
+PybindSuffixArrayHelper(py::array_t<T, py::array::c_style> &input) {
 
   py::buffer_info input_buf = input.request();
 
