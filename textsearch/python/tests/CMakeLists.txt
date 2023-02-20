@@ -16,7 +16,7 @@ function(textsearch_add_py_test source)
   )
 endfunction()
 
-if(LILCOM_ENABLE_TESTS)
+if(FTS_ENABLE_TESTS)
   set(test_srcs
     test_suffix_array.py
   )
