@@ -44,34 +44,34 @@ class TestSuffixArray(unittest.TestCase):
 
         6, type : query, suffix : alloiholloyouyouhellome
         1, type : query, suffix : ellohalloiholloyouyouhellome
-        23, type : reference : suffix : ellome
-        28, type : reference : suffix : e
+        23, type : reference, suffix : ellome
+        28, type : reference, suffix : e
         5, type : query, suffix : halloiholloyouyouhellome
         0, type : query, suffix : hellohalloiholloyouyouhellome
-        22, type : reference : suffix : hellome
-        11, type : reference : suffix : holloyouyouhellome
-        10, type : reference : suffix : iholloyouyouhellome
+        22, type : reference, suffix : hellome
+        11, type : reference, suffix : holloyouyouhellome
+        10, type : reference, suffix : iholloyouyouhellome
         2, type : query, suffix : llohalloiholloyouyouhellome
         7, type : query, suffix : lloiholloyouyouhellome
-        24, type : reference : suffix : llome
-        13, type : reference : suffix : lloyouyouhellome
+        24, type : reference, suffix : llome
+        13, type : reference, suffix : lloyouyouhellome
         3, type : query, suffix : lohalloiholloyouyouhellome
         8, type : query, suffix : loiholloyouyouhellome
-        25, type : reference : suffix : lome
-        14, type : reference : suffix : loyouyouhellome
-        27, type : reference : suffix : me
+        25, type : reference, suffix : lome
+        14, type : reference, suffix : loyouyouhellome
+        27, type : reference, suffix : me
         4, type : query, suffix : ohalloiholloyouyouhellome
         9, type : query, suffix : oiholloyouyouhellome
-        12, type : reference : suffix : olloyouyouhellome
-        26, type : reference : suffix : ome
-        20, type : reference : suffix : ouhellome
-        17, type : reference : suffix : ouyouhellome
-        15, type : reference : suffix : oyouyouhellome
-        21, type : reference : suffix : uhellome
-        18, type : reference : suffix : uyouhellome
-        19, type : reference : suffix : youhellome
-        16, type : reference : suffix : youyouhellome
-        29, type : reference : suffix :
+        12, type : reference, suffix : olloyouyouhellome
+        26, type : reference, suffix : ome
+        20, type : reference, suffix : ouhellome
+        17, type : reference, suffix : ouyouhellome
+        15, type : reference, suffix : oyouyouhellome
+        21, type : reference, suffix : uhellome
+        18, type : reference, suffix : uyouhellome
+        19, type : reference, suffix : youhellome
+        16, type : reference, suffix : youyouhellome
+        29, type : reference, suffix :
         """
         queries = ["hello", "hallo"]
         documents = ["iholloyou", "youhellome"]

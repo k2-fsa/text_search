@@ -28,8 +28,8 @@ def create_suffix_array(input: np.ndarray) -> np.ndarray:
        input: an integer (or unsigned integer) type of np.ndarray.  Its shape
           should be (seq_len + 3,) where `seq_len` is the text sequence length INCLUDING
           EOS SYMBOL.
-          The EOS (end of sequence) symbol must be the largest element of the
-          type (i.e. of the form 2^n - 1), must be located at input[seq_len - 1] and
+          The EOS (end of sequence) symbol must be the second largest element of the
+          type (i.e. of the form 2^n - 2), must be located at input[seq_len - 1] and
           must appear nowhere else in `input` (you may have to map the input
           symbols somehow to achieve this).  It must be followed by 3 zeros, for reasons
           related to how the algorithm works.
@@ -44,6 +44,8 @@ def create_suffix_array(input: np.ndarray) -> np.ndarray:
     max_symbol = input[seq_len - 1]
     assert max_symbol == np.iinfo(input.dtype).max - 1, max_symbol
     assert np.alltrue(input[seq_len:] == np.array([0, 0, 0], dtype=input.dtype))
+
+    # The C++ code requires the input array to be contiguous.
     input64 = np.ascontiguousarray(input, dtype=np.int64)
     return _fasttextsearch.create_suffix_array(input64)
 
