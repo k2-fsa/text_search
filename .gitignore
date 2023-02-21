@@ -1,0 +1,11 @@
+*~
+[#]*[#]
+
+# for build
+build/
+dist/ 
+fasttextsearch.egg-info/
+*.so
+__pycache__/
+*.dSYM/
+.eggs/

@@ -17,8 +17,8 @@
  * limitations under the License.
  */
 
-#ifndef TEXTSEARCh_CSRC_SUFFIX_ARRAY_H_
-#define TEXTSEARCh_CSRC_SUFFIX_ARRAY_H_
+#ifndef TEXTSEARCH_CSRC_SUFFIX_ARRAY_H_
+#define TEXTSEARCH_CSRC_SUFFIX_ARRAY_H_
 
 namespace fasttextsearch {
 /*
@@ -63,4 +63,4 @@ void CreateSuffixArray(const T *text_array, T seq_len, T max_symbol,
                        T *suffix_array);
 
 } // namespace fasttextsearch
-#endif // TEXTSEARCh_CSRC_SUFFIX_ARRAY_H_
+#endif // TEXTSEARCH_CSRC_SUFFIX_ARRAY_H_
