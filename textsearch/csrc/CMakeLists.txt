@@ -1,5 +1,4 @@
 set(textsearch_srcs
-  edlib.cc
   suffix_array.cc
 )
 

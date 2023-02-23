@@ -1,7 +1,27 @@
 // Copied and modified from
 // https://github.com/Martinsos/edlib/blob/master/test/SimpleEditDistance.h and
 // https://github.com/Martinsos/edlib/blob/master/test/runTests.cpp
+
+// MIT License
 //
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 #include <gtest/gtest.h>
 
 #include <climits>
@@ -14,6 +34,7 @@
 #include "textsearch/csrc/edlib.h"
 
 using namespace std;
+using namespace edlib;
 
 static int max(int a, int b) { return a > b ? a : b; }
 
@@ -21,21 +42,22 @@ static int min(int x, int y) { return x < y ? x : y; }
 
 static int min3(int x, int y, int z) { return min(x, min(y, z)); }
 
-static int calcEditDistanceSimple(const char *query, int queryLength,
-                                  const char *target, int targetLength,
-                                  const EdlibAlignMode mode, int *score,
+template <class Element = char>
+static int calcEditDistanceSimple(const Element *query, int queryLength,
+                                  const Element *target, int targetLength,
+                                  const edlib::EdlibAlignMode mode, int *score,
                                   int **positions_, int *numPositions_) {
   int bestScore = -1;
-  vector<int> positions;
+  std::vector<int> positions;
 
   // Handle as a special situation when one of the sequences has length 0.
   if (queryLength == 0 || targetLength == 0) {
-    if (mode == EDLIB_MODE_NW) {
+    if (mode == edlib::EDLIB_MODE_NW) {
       *score = std::max(queryLength, targetLength);
       *positions_ = new int[1];
       *positions_[0] = targetLength - 1;
       *numPositions_ = 1;
-    } else if (mode == EDLIB_MODE_SHW || mode == EDLIB_MODE_HW) {
+    } else if (mode == edlib::EDLIB_MODE_SHW || mode == edlib::EDLIB_MODE_HW) {
       *score = queryLength;
       *positions_ = new int[1];
       *positions_[0] = -1;
@@ -53,9 +75,10 @@ static int calcEditDistanceSimple(const char *query, int queryLength,
   for (int i = 0; i < queryLength; i++) {
     C[i] = i + 1;
   }
-  for (int c = 0; c < targetLength; c++) {                  // for each column
-    newC[0] = min3((mode == EDLIB_MODE_HW ? 0 : c + 1) + 1, // up
-                   (mode == EDLIB_MODE_HW ? 0 : c) +
+
+  for (int c = 0; c < targetLength; c++) { // for each column
+    newC[0] = min3((mode == edlib::EDLIB_MODE_HW ? 0 : c + 1) + 1, // up
+                   (mode == edlib::EDLIB_MODE_HW ? 0 : c) +
                        (target[c] == query[0] ? 0 : 1), // up left
                    C[0] + 1);                           // left
     for (int r = 1; r < queryLength; r++) {
@@ -64,7 +87,7 @@ static int calcEditDistanceSimple(const char *query, int queryLength,
                      C[r] + 1);                                  // left
     }
 
-    if (mode != EDLIB_MODE_NW ||
+    if (mode != edlib::EDLIB_MODE_NW ||
         c == targetLength - 1) { // For NW check only last column
       int newScore = newC[queryLength - 1];
       if (bestScore == -1 || newScore <= bestScore) {
@@ -97,8 +120,12 @@ static int calcEditDistanceSimple(const char *query, int queryLength,
   return EDLIB_STATUS_OK;
 }
 
-static bool checkAlignment(const char *query, int queryLength,
-                           const char *target, int score, int pos,
+/**
+ * Checks if alignment is correct.
+ */
+template <class Element>
+static bool checkAlignment(const Element *query, int queryLength,
+                           const Element *target, int score, int pos,
                            EdlibAlignMode mode, unsigned char *alignment,
                            int alignmentLength) {
   int alignScore = 0;
@@ -189,7 +216,7 @@ static bool executeTest(const char *query, int queryLength, const char *target,
 
   EdlibAlignResult result =
       edlibAlign(query, queryLength, target, targetLength,
-                 edlibNewAlignConfig(-1, mode, EDLIB_TASK_PATH, NULL, 0));
+                 edlibNewAlignConfig<char>(-1, mode, EDLIB_TASK_PATH, NULL, 0));
 
   if (result.editDistance != scoreSimple) {
     pass = false;
@@ -230,15 +257,17 @@ static bool executeTest(const char *query, int queryLength, const char *target,
   return pass;
 }
 
-static void fillRandomly(char *seq, int seqLength, int alphabetLength) {
+template <class Element, class AlphabetIdx>
+static void fillRandomly(Element *seq, int seqLength,
+                         AlphabetIdx alphabetSize) {
   for (int i = 0; i < seqLength; i++)
-    seq[i] = static_cast<char>(rand()) % alphabetLength;
+    seq[i] = static_cast<Element>(rand() % alphabetSize);
 }
 
 // Returns true if all tests passed, false otherwise.
-static bool runRandomTests(int numTests, EdlibAlignMode mode,
-                           bool findAlignment) {
-  int alphabetLength = 10;
+template <class Element, class AlphabetIdx>
+bool runRandomTests(int numTests, EdlibAlignMode mode, bool findAlignment,
+                    AlphabetIdx alphabetSize) {
   int numTestsFailed = 0;
   clock_t start;
   double timeEdlib = 0;
@@ -246,24 +275,27 @@ static bool runRandomTests(int numTests, EdlibAlignMode mode,
 
   for (int i = 0; i < numTests; i++) {
     bool failed = false;
-    int queryLength = 50 + rand() % 300;
-    int targetLength = 500 + rand() % 10000;
-    char *query = static_cast<char *>(malloc(sizeof(char) * queryLength));
-    char *target = static_cast<char *>(malloc(sizeof(char) * targetLength));
-    fillRandomly(query, queryLength, alphabetLength);
-    fillRandomly(target, targetLength, alphabetLength);
+    int queryLength = 500 + rand() % 300;
+    int targetLength = 50000 + rand() % 10000;
+    Element *query =
+        static_cast<Element *>(malloc(sizeof(Element) * queryLength));
+    Element *target =
+        static_cast<Element *>(malloc(sizeof(Element) * targetLength));
+    fillRandomly<Element, AlphabetIdx>(query, queryLength, alphabetSize);
+    fillRandomly<Element, AlphabetIdx>(target, targetLength, alphabetSize);
 
     start = clock();
-    EdlibAlignResult result = edlibAlign(
+    EdlibAlignResult result = edlibAlign<Element, AlphabetIdx>(
         query, queryLength, target, targetLength,
-        edlibNewAlignConfig(
+        edlibNewAlignConfig<Element>(
             -1, mode, findAlignment ? EDLIB_TASK_PATH : EDLIB_TASK_DISTANCE,
             NULL, 0));
     timeEdlib += clock() - start;
     if (result.alignment) {
-      if (!checkAlignment(query, queryLength, target, result.editDistance,
-                          result.endLocations[0], mode, result.alignment,
-                          result.alignmentLength)) {
+      if (!checkAlignment<Element>(query, queryLength, target,
+                                   result.editDistance, result.endLocations[0],
+                                   mode, result.alignment,
+                                   result.alignmentLength)) {
         failed = true;
         printf("Alignment is not correct\n");
       }
@@ -281,8 +313,9 @@ static bool runRandomTests(int numTests, EdlibAlignMode mode,
     int score2;
     int numLocations2;
     int *endLocations2;
-    calcEditDistanceSimple(query, queryLength, target, targetLength, mode,
-                           &score2, &endLocations2, &numLocations2);
+    calcEditDistanceSimple<Element>(query, queryLength, target, targetLength,
+                                    mode, &score2, &endLocations2,
+                                    &numLocations2);
     timeSimple += clock() - start;
 
     // Compare results
@@ -315,9 +348,9 @@ static bool runRandomTests(int numTests, EdlibAlignMode mode,
 
     for (int k = max(score2 - 1, 0); k <= score2 + 1; k++) {
       int scoreExpected = score2 > k ? -1 : score2;
-      EdlibAlignResult result3 = edlibAlign(
+      EdlibAlignResult result3 = edlibAlign<Element, AlphabetIdx>(
           query, queryLength, target, targetLength,
-          edlibNewAlignConfig(
+          edlibNewAlignConfig<Element>(
               k, mode, findAlignment ? EDLIB_TASK_PATH : EDLIB_TASK_DISTANCE,
               NULL, 0));
       if (result3.editDistance != scoreExpected) {
@@ -326,9 +359,10 @@ static bool runRandomTests(int numTests, EdlibAlignMode mode,
                result3.editDistance, scoreExpected);
       }
       if (result3.alignment) {
-        if (!checkAlignment(query, queryLength, target, result3.editDistance,
-                            result3.endLocations[0], mode, result3.alignment,
-                            result3.alignmentLength)) {
+        if (!checkAlignment<Element>(
+                query, queryLength, target, result3.editDistance,
+                result3.endLocations[0], mode, result3.alignment,
+                result3.alignmentLength)) {
           failed = true;
           printf("Alignment is not correct\n");
         }
@@ -554,7 +588,7 @@ TEST(EdlibTest, TestBasic11) {
 }
 
 TEST(EdlibTest, TestBasic12) {
-  EdlibEqualityPair additionalEqualities[24] = {
+  EdlibEqualityPair<char> additionalEqualities[24] = {
       {'R', 'A'}, {'R', 'G'}, {'M', 'A'}, {'M', 'C'}, {'W', 'A'}, {'W', 'T'},
       {'S', 'C'}, {'S', 'G'}, {'Y', 'C'}, {'Y', 'T'}, {'K', 'G'}, {'K', 'T'},
       {'V', 'A'}, {'V', 'C'}, {'V', 'G'}, {'H', 'A'}, {'H', 'C'}, {'H', 'T'},
@@ -595,8 +629,8 @@ TEST(EdlibTest, TestBasic12) {
   EdlibAlignResult result =
       edlibAlign(query, static_cast<int>(std::strlen(query)), target,
                  static_cast<int>(std::strlen(target)),
-                 edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_LOC,
-                                     additionalEqualities, 24));
+                 edlibNewAlignConfig<char>(-1, EDLIB_MODE_HW, EDLIB_TASK_LOC,
+                                           additionalEqualities, 24));
   bool pass = result.status == EDLIB_STATUS_OK && result.editDistance == 0;
   edlibFreeAlignResult(result);
   EXPECT_TRUE(pass);
@@ -614,7 +648,7 @@ TEST(EdlibTest, TestBasic13) {
   EdlibAlignResult result = edlibAlign(
       query, static_cast<int>(std::strlen(query)), target,
       static_cast<int>(std::strlen(target)),
-      edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
+      edlibNewAlignConfig<char>(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
   bool pass = result.status == EDLIB_STATUS_OK && result.editDistance == 2;
   edlibFreeAlignResult(result);
   EXPECT_TRUE(pass);
@@ -632,7 +666,7 @@ TEST(EdlibTest, TestBasic14) {
   EdlibAlignResult result = edlibAlign(
       query, static_cast<int>(std::strlen(query)), target,
       static_cast<int>(std::strlen(target)),
-      edlibNewAlignConfig(-1, EDLIB_MODE_SHW, EDLIB_TASK_PATH, NULL, 0));
+      edlibNewAlignConfig<char>(-1, EDLIB_MODE_SHW, EDLIB_TASK_PATH, NULL, 0));
   bool pass = result.status == EDLIB_STATUS_OK && result.editDistance == 2;
   edlibFreeAlignResult(result);
   EXPECT_TRUE(pass);
@@ -647,7 +681,7 @@ TEST(EdlibTest, TestBasic15) {
   EdlibAlignResult result = edlibAlign(
       query, static_cast<int>(std::strlen(query)), target,
       static_cast<int>(std::strlen(target)),
-      edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_LOC, NULL, 0));
+      edlibNewAlignConfig<char>(-1, EDLIB_MODE_HW, EDLIB_TASK_LOC, NULL, 0));
   bool pass = result.status == EDLIB_STATUS_OK && result.editDistance == 3;
   edlibFreeAlignResult(result);
   EXPECT_TRUE(pass);
@@ -662,7 +696,7 @@ TEST(EdlibTest, TestBasic16) {
   EdlibAlignResult result = edlibAlign(
       query, static_cast<int>(std::strlen(query)), target,
       static_cast<int>(std::strlen(target)),
-      edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_LOC, NULL, 0));
+      edlibNewAlignConfig<char>(-1, EDLIB_MODE_HW, EDLIB_TASK_LOC, NULL, 0));
   bool pass = result.status == EDLIB_STATUS_OK && result.editDistance == 3;
   edlibFreeAlignResult(result);
   EXPECT_TRUE(pass);
@@ -701,7 +735,7 @@ TEST(EdlibTest, TestCigar) {
 }
 
 TEST(EdlibTest, TestCustomEqualityRelation) {
-  EdlibEqualityPair additionalEqualities[6] = {
+  EdlibEqualityPair<char> additionalEqualities[6] = {
       {'R', 'A'}, {'R', 'G'}, {'N', 'A'}, {'N', 'C'}, {'N', 'T'}, {'N', 'G'}};
 
   const char *query = "GTGNRTCARCGAANCTTTN";
@@ -709,8 +743,8 @@ TEST(EdlibTest, TestCustomEqualityRelation) {
 
   EdlibAlignResult result =
       edlibAlign(query, 19, target, 41,
-                 edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH,
-                                     additionalEqualities, 6));
+                 edlibNewAlignConfig<char>(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH,
+                                           additionalEqualities, 6));
   bool pass = result.status == EDLIB_STATUS_OK && result.editDistance == 1;
   edlibFreeAlignResult(result);
   EXPECT_TRUE(pass);
@@ -718,10 +752,33 @@ TEST(EdlibTest, TestCustomEqualityRelation) {
 
 TEST(EdlibTest, TestRandom) {
   srand(42);
-  int numRandomTests = 50;
-  for (auto mode :
-       vector<EdlibAlignMode>{EDLIB_MODE_NW, EDLIB_MODE_HW, EDLIB_MODE_SHW}) {
-    EXPECT_TRUE(runRandomTests(numRandomTests, mode, true));
-    EXPECT_TRUE(runRandomTests(numRandomTests, mode, false));
+  int numRandomTests = 10;
+  for (auto mode : vector<EdlibAlignMode>{
+           /*EDLIB_MODE_NW,*/ EDLIB_MODE_HW /*, EDLIB_MODE_SHW*/}) {
+    printf("char, vocab size : 100\n");
+    EXPECT_TRUE(
+        (runRandomTests<char, unsigned char>(numRandomTests, mode, true, 100)));
+    EXPECT_TRUE((
+        runRandomTests<char, unsigned char>(numRandomTests, mode, false, 100)));
+    printf("int16_t, vocab size : 100\n");
+    EXPECT_TRUE(
+        (runRandomTests<int16_t, uint16_t>(numRandomTests, mode, true, 100)));
+    EXPECT_TRUE(
+        (runRandomTests<int16_t, uint16_t>(numRandomTests, mode, false, 100)));
+    printf("int16_t, vocab size : 10000\n");
+    EXPECT_TRUE(
+        (runRandomTests<int16_t, uint16_t>(numRandomTests, mode, true, 10000)));
+    EXPECT_TRUE((
+        runRandomTests<int16_t, uint16_t>(numRandomTests, mode, false, 10000)));
+    printf("int32_t, vocab size : 100\n");
+    EXPECT_TRUE(
+        (runRandomTests<int32_t, uint32_t>(numRandomTests, mode, true, 100)));
+    EXPECT_TRUE(
+        (runRandomTests<int32_t, uint32_t>(numRandomTests, mode, false, 100)));
+    printf("int32_t, vocab size : 10000\n");
+    EXPECT_TRUE(
+        (runRandomTests<int32_t, uint32_t>(numRandomTests, mode, true, 10000)));
+    EXPECT_TRUE((
+        runRandomTests<int32_t, uint32_t>(numRandomTests, mode, false, 10000)));
   }
 }

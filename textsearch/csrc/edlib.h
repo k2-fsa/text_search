@@ -1,37 +1,41 @@
-// Copy from
+// Copied and modified from
 // https://github.com/Martinsos/edlib/blob/master/edlib/include/edlib.h
 
-#ifndef TEXTSEARCH_CSRC_DLIB_H
-#define TEXTSEARCH_CSRC_DLIB_H
+// MIT License
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+#ifndef TEXTSEARCH_CSRC_DLIB_H_
+#define TEXTSEARCH_CSRC_DLIB_H_
+
+#include <stdint.h>
 
 /**
  * @file
- * @author Martin Sosic
  * @brief Main header file, containing all public functions and structures.
  */
-
-// Define EDLIB_API macro to properly export symbols
-#ifdef EDLIB_SHARED
-#ifdef _WIN32
-#ifdef EDLIB_BUILD
-#define EDLIB_API __declspec(dllexport)
-#else
-#define EDLIB_API __declspec(dllimport)
-#endif
-#else
-#define EDLIB_API __attribute__((visibility("default")))
-#endif
-#else
-#define EDLIB_API
-#endif
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 // Status codes
 #define EDLIB_STATUS_OK 0
 #define EDLIB_STATUS_ERROR 1
+
+namespace edlib {
 
 /**
  * Alignment methods - how should Edlib treat gaps before and after query?
@@ -92,24 +96,28 @@ typedef enum {
                        //!< 'X'.
 } EdlibCigarFormat;
 
+} // namespace edlib
+
 // Edit operations.
 #define EDLIB_EDOP_MATCH 0    //!< Match.
 #define EDLIB_EDOP_INSERT 1   //!< Insertion to target = deletion from query.
 #define EDLIB_EDOP_DELETE 2   //!< Deletion from target = insertion to query.
 #define EDLIB_EDOP_MISMATCH 3 //!< Mismatch.
 
+namespace edlib {
+
 /**
  * @brief Defines two given characters as equal.
  */
-typedef struct {
-  char first;
-  char second;
-} EdlibEqualityPair;
+template <class Element = char> struct EdlibEqualityPair {
+  Element first;
+  Element second;
+};
 
 /**
  * @brief Configuration object for edlibAlign() function.
  */
-typedef struct {
+template <class Element = char> struct EdlibAlignConfig {
   /**
    * Set k to non-negative value to tell edlib that edit distance is not larger
    * than k. Smaller k can significantly improve speed of computation. If edit
@@ -145,22 +153,23 @@ typedef struct {
    * or e.g. if you want edlib to be case insensitive.
    * Can be set to NULL if there are none.
    */
-  const EdlibEqualityPair *additionalEqualities;
+  const EdlibEqualityPair<Element> *additionalEqualities;
 
   /**
    * Number of additional equalities, which is non-negative number.
    * 0 if there are none.
    */
   int additionalEqualitiesLength;
-} EdlibAlignConfig;
+};
 
 /**
  * Helper method for easy construction of configuration object.
  * @return Configuration object filled with given parameters.
  */
-EDLIB_API EdlibAlignConfig
+template <class Element = char>
+EdlibAlignConfig<Element>
 edlibNewAlignConfig(int k, EdlibAlignMode mode, EdlibAlignTask task,
-                    const EdlibEqualityPair *additionalEqualities,
+                    const EdlibEqualityPair<Element> *additionalEqualities,
                     int additionalEqualitiesLength);
 
 /**
@@ -168,7 +177,8 @@ edlibNewAlignConfig(int k, EdlibAlignMode mode, EdlibAlignTask task,
  *         k = -1, mode = EDLIB_MODE_NW, task = EDLIB_TASK_DISTANCE, no
  * additional equalities.
  */
-EDLIB_API EdlibAlignConfig edlibDefaultAlignConfig(void);
+template <class Element = char>
+EdlibAlignConfig<Element> edlibDefaultAlignConfig(void);
 
 /**
  * Container for results of alignment done by edlibAlign() function.
@@ -228,17 +238,13 @@ typedef struct {
    */
   int alignmentLength;
 
-  /**
-   * Number of different characters in query and target together.
-   */
-  int alphabetLength;
 } EdlibAlignResult;
 
 /**
  * Frees memory in EdlibAlignResult that was allocated by edlib.
  * If you do not use it, make sure to free needed members manually using free().
  */
-EDLIB_API void edlibFreeAlignResult(EdlibAlignResult result);
+inline void edlibFreeAlignResult(EdlibAlignResult result);
 
 /**
  * Aligns two sequences (query and target) using edit distance (levenshtein
@@ -257,9 +263,10 @@ EDLIB_API void edlibFreeAlignResult(EdlibAlignResult result);
  * locations and alignment path. Make sure to clean up the object using
  * edlibFreeAlignResult() or by manually freeing needed members.
  */
-EDLIB_API EdlibAlignResult edlibAlign(const char *query, int queryLength,
-                                      const char *target, int targetLength,
-                                      const EdlibAlignConfig config);
+template <class Element = char, class AlphabetIdx = uint8_t>
+EdlibAlignResult edlibAlign(const Element *query, int queryLength,
+                            const Element *target, int targetLength,
+                            const EdlibAlignConfig<Element> config);
 
 /**
  * Builds cigar string from given alignment sequence.
@@ -280,12 +287,14 @@ EDLIB_API EdlibAlignResult edlibAlign(const char *query, int queryLength,
  *     Needed memory is allocated and given pointer is set to it.
  *     Do not forget to free it later using free()!
  */
-EDLIB_API char *edlibAlignmentToCigar(const unsigned char *alignment,
-                                      int alignmentLength,
-                                      EdlibCigarFormat cigarFormat);
+inline char *edlibAlignmentToCigar(const unsigned char *alignment,
+                                   int alignmentLength,
+                                   EdlibCigarFormat cigarFormat);
 
-#ifdef __cplusplus
-}
-#endif
+} // namespace edlib
 
-#endif // TEXTSEARCH_CSRC_DLIB_H
+#define IS_IN_TEXTSEARCH_CSRC_EDLIB_H_
+#include "textsearch/csrc/edlib_inl.h"
+#undef IS_IN_TEXTSEARCH_CSRC_EDLIB_H_
+
+#endif // TEXTSEARCH_CSRC_DLIB_H_
