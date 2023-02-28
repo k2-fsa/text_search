@@ -23,7 +23,7 @@
 import unittest
 import numpy as np
 
-from textsearch import levenshtein_distance, get_nice_alignments
+from textsearch import get_nice_alignments, levenshtein_distance
 
 
 class TestLevenshtein(unittest.TestCase):

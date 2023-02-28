@@ -21,6 +21,39 @@ from typing import List, Tuple
 def get_nice_alignments(
     alignments: List[Tuple[int, str]], query: np.ndarray, target: np.ndarray
 ) -> List[str]:
+    """
+    Get the alignment of the matched segments.
+
+    Args:
+      alignments:
+        The alignments information returned by the `levenshtein_distance`.
+      query:
+        The query sequence.
+      target:
+        The target sequence.
+
+    Returns:
+      Return a list of alignment string, it has the same length as alignments.
+      See the following example for more details, the first line of the alignment
+      is query, the second line is the error types, the third line is the target
+      segment. '*' means empty, '+' means insertion, '-' means deletion, '#' means
+      replacement, '|' means equal.
+
+    >>> from textsearch import get_nice_alignments, levenshtein_distance
+    >>> import numpy as np
+    >>> query = np.array([1, 2, 3, 4], dtype=np.int32)
+    >>> target = np.array([1, 5, 3, 4, 6, 7, 1, 2, 4], dtype=np.int32)
+    >>> distance, alignments = levenshtein_distance(query, target)
+    >>> aligns = get_nice_alignments(alignments, a, b)
+    >>> print (aligns[0])
+    1 2 3 4
+    | # | |
+    1 5 3 4
+    >>> print (aligns[1])
+    1 2 3 4
+    | | + |
+    1 2 * 4
+    """
     results = []
     for align in alignments:
         j = align[0]
