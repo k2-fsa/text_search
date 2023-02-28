@@ -1,4 +1,5 @@
 pybind11_add_module(_fasttextsearch
+  levenshtein.cc
   suffix_array.cc
   text_search.cc
 )

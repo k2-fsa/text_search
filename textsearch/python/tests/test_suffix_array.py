@@ -18,7 +18,7 @@
 
 # To run this single test, use
 #
-#  ctest --verbose -R cat_test_py
+#  ctest --verbose -R suffix_array_test_py
 
 import unittest
 import numpy as np

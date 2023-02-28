@@ -18,6 +18,7 @@ endfunction()
 if(FTS_ENABLE_TESTS)
   # please sort the source files alphabetically
   set(test_srcs
+    levenshtein_test.cc
     suffix_array_test.cc
   )
 
