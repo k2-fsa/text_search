@@ -23,34 +23,29 @@
 import unittest
 import numpy as np
 
-from textsearch import levenshtein_distance
+from textsearch import levenshtein_distance, get_nice_alignments
 
 
 class TestLevenshtein(unittest.TestCase):
     def test_levenshtein_distance(self):
-        query = np.array([1,2,3,4], dtype=np.int32)
-        target = np.array([1,5,3,4,6,7,1,2,4], dtype=np.int32)
+        query = np.array([1, 2, 3, 4], dtype=np.int32)
+        target = np.array([1, 5, 3, 4, 6, 7, 1, 2, 4], dtype=np.int32)
         distance, alignments = levenshtein_distance(query, target)
         self.assertTrue(distance == 1)
         self.assertTrue(len(alignments) == 2)
-        self.assertTrue(alignments[0] == (3, '01010101'))
-        self.assertTrue(alignments[1] == (8, '0101101'))
+        self.assertTrue(alignments[0] == (3, "01010101"))
+        self.assertTrue(alignments[1] == (8, "0101101"))
 
-    def test_levenshtein_distance_string(self):
-        query = "hello"
-        target = "hellaworldgellop"
+    def test_get_nice_alignments(self):
+        query = np.array([10, 234, 98745, 14, 8], dtype=np.int32)
+        target = np.array([7, 10, 134, 9, 98745, 8], dtype=np.int32)
         distance, alignments = levenshtein_distance(query, target)
-        self.assertTrue(distance == 1)
-        self.assertTrue(len(alignments) == 3)
-        self.assertTrue(alignments[0] == (3, '010101011'))
-        self.assertTrue(alignments[1] == (4, '0101010101'))
-        self.assertTrue(alignments[2] == (14, '101010101'))
-
-        query = "我爱中国"
-        target = "我喜中国他也爱中国我爱美国"
-        distance, alignments = levenshtein_distance(query, target)
-        print (distance, alignments)
-
+        align_str = get_nice_alignments(alignments, query, target)
+        expected_align = (
+            "10 234 * 98745 14 8 \n|  #   - |     +  | \n10 134 9 98745 *  8 "
+        )
+        self.assertTrue(len(align_str) == 1)
+        self.assertTrue(align_str[0] == expected_align)
 
 
 if __name__ == "__main__":
