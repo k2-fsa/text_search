@@ -32,8 +32,26 @@ class TestLevenshtein(unittest.TestCase):
         target = np.array([1,5,3,4,6,7,1,2,4], dtype=np.int32)
         distance, alignments = levenshtein_distance(query, target)
         self.assertTrue(distance == 1)
+        self.assertTrue(len(alignments) == 2)
         self.assertTrue(alignments[0] == (3, '01010101'))
         self.assertTrue(alignments[1] == (8, '0101101'))
+
+    def test_levenshtein_distance_string(self):
+        query = "hello"
+        target = "hellaworldgellop"
+        distance, alignments = levenshtein_distance(query, target)
+        self.assertTrue(distance == 1)
+        self.assertTrue(len(alignments) == 3)
+        self.assertTrue(alignments[0] == (3, '010101011'))
+        self.assertTrue(alignments[1] == (4, '0101010101'))
+        self.assertTrue(alignments[2] == (14, '101010101'))
+
+        query = "我爱中国"
+        target = "我喜中国他也爱中国我爱美国"
+        distance, alignments = levenshtein_distance(query, target)
+        print (distance, alignments)
+
+
 
 if __name__ == "__main__":
     unittest.main()

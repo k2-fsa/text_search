@@ -57,8 +57,29 @@ PybindLevenshteinHelper(py::array_t<T, py::array::c_style> &query,
   return std::make_pair(distance, trace);
 }
 
+static std::pair<int32_t, std::vector<std::pair<int64_t, std::string>>>
+PybindStringLevenshteinHelper(const std::string &query,
+                              const std::string &target, int32_t insert_cost,
+                              int32_t delete_cost, int32_t replace_cost) {
+  std::vector<LevenshteinElement> alignments;
+
+  int32_t distance = LevenshteinDistance(
+      query.data(), query.size(), target.data(), target.size(), &alignments,
+      insert_cost, delete_cost, replace_cost);
+
+  std::vector<std::pair<int64_t, std::string>> trace;
+  for (const auto align : alignments) {
+    trace.push_back(std::make_pair(align.position, align.backtrace.ToString()));
+  }
+
+  return std::make_pair(distance, trace);
+}
+
 void PybindLevenshtein(py::module &m) {
   m.def("levenshtein_distance", &PybindLevenshteinHelper<int32_t>,
+        py::arg("query"), py::arg("target"), py::arg("insert_cost") = 1,
+        py::arg("delete_cost") = 1, py::arg("replace_cost") = 1);
+  m.def("levenshtein_distance", &PybindStringLevenshteinHelper,
         py::arg("query"), py::arg("target"), py::arg("insert_cost") = 1,
         py::arg("delete_cost") = 1, py::arg("replace_cost") = 1);
 }
