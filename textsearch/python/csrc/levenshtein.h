@@ -16,15 +16,15 @@
  * limitations under the License.
  */
 
-#ifndef TEXTSEARCH_PYTHON_CSRC_SUFFIX_ARRAY_H_
-#define TEXTSEARCH_PYTHON_CSRC_SUFFIX_ARRAY_H_
+#ifndef TEXTSEARCH_PYTHON_CSRC_LEVENSHTEIN_H_
+#define TEXTSEARCH_PYTHON_CSRC_LEVENSHTEIN_H_
 
 #include "textsearch/python/csrc/text_search.h"
 
 namespace fasttextsearch {
 
-void PybindSuffixArray(py::module &m);
+void PybindLevenshtein(py::module &m);
 
 } // namespace fasttextsearch
 
-#endif // TEXTSEARCH_PYTHON_CSRC_SUFFIX_ARRAY_H_
+#endif // TEXTSEARCH_PYTHON_CSRC_LEVENSHTEIN_H_
