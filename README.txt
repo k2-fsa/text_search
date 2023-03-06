@@ -47,27 +47,52 @@
 
 ==
 
+# we might make this a regular class, as initialization would be non-trivial if
+# UTF-8 decoding is required since we have to figure out the file position.
+# [Note: I'd like this to be robust to UTF decoding errors if possible, but
+# in the short term this might not be necessary.  What I don't want is that
+# we silently ignore UTF errors that could cause mismatches in file position
+# between the recorded and actual ones.]
 @dataclass
 class TextSource:
       name: str  # might be a filename
-      text: np.ndarray  # the text, probably as a sequence of bytes but could be utf-32 i.e. np.uint32.
+      text: np.ndarray  # the text, probably as a sequence of bytes but could be utf-32 i.e. np.int32.
                         # Length of the array may not be >= 2**32.
+      pos: Optional[np.ndarray]  # Only used if text is an np.int32: the mapping from
+                                 # UTF character position to byte position.
+
+# class Transcript, let's view this as a not-very-fundamental type that is for automatically
+# transcribed text.  The time marks are at the byte level.  We can easily turn automatic
+# transcripts of text into this type as long as we keep track of the time for each symbol.
+# we don't have to use dataclass, could have it as a regular class for flexibility of
+# initialization.
+@dataclass
+class Transcript:
+      name: str  # a filename or some kind of id.
+      text: np.ndarray  # the text as a sequence of bytes or (more likely) int32 corresponding to UTF codepoints.
+                        # We will have to expand BPE tokens into bytes, presumably converting _ into space.
+      times: np.ndarray  # gives the time in seconds for each byte of the text.  (Should be in non-decreasing order).
 
 
 # we'll have a global list of text sources during the program lifetime, and indexes into this list
 # (probably int32) will represent the text source.
-TextSources = List[TextSource]
+TextSources = List[Union[TextSource, Transcript]]
 
 
 @dataclass
 class SourcedText:
       # represents a text with some meta-info that records from where in a collection of
       # texts it came.
-      text: np.ndarray  # the text, a 1-d array, probably a sequence of bytes but could be uint32 representing utf-32.
+      text: np.ndarray  # the text, a 1-d array, probably a sequence of bytes but could be uint32 representing utf
+                        # code points.
                         # Note: this text array is 'owned' here so it can be modified by the user.
       pos: np.ndarray  # the text position in the original source for each element of the text.  Of type uint32;
       doc: Union[int, np.ndarray]   # the document index for each element of the text.
                                     # the np.ndarray would be of type uint32.
+      doc_splits: Optional[np.ndarray]  # optional: an array derived from `doc` which is like the row
+                                        # splits in k2 (or in tensorflow ragged arrays), with `doc` being
+                                        # the row-ids.
+
       sources: TextSource  # for reference, the list of available text sources that this text might come from.
 
 
@@ -230,16 +255,18 @@ def remove(t: SourcedText, keep: np.ndarray) -> SourcedText:
 
 
 
-
-====
+======
   Next: stuff for Levenshtein or Smith-Waterman alignment.
 
-  Once we have the candidate matches:
+   (We should give this alignment algorithm as a generic an interface as possible because we might
+    want to use it in a few different contexts.)
+
+   Once we have the candidate matches:
      We extend them slightly to the left and right, e.g. by 10 + query_length // 8, this can be done
      at a fairly outer level of the code.
 
      We match each of them with the query text using a Levenshtein-like alignment process that
-     allows un-penalized insertions of reference text at the very beginning, or very end, of
+     allows un-penalized deletions of reference text at the very beginning, or very end, of
      the query text.   (easy to do: just initialize with zeros along one side of the array, and
      once all scores are computed, take minimum from other side of the array).
      This will return the alignment and the corresponding score.
@@ -271,3 +298,83 @@ def remove(t: SourcedText, keep: np.ndarray) -> SourcedText:
 
 
 ====
+(I mentioned edlib in an issue, we can use edlib for the levenshtein code as it's already optimized.)
+
+
+The alignment from edlib will, it seems consist of:
+The (start, end) position within the reference, and an array of
+
+  (0, 1, 2, 3) meaning (match, insert, delete, mismatch).
+
+
+The following is how we can turn this into a segmentation.  (Note: the query
+document is assumed here to be a long recording, not an already-segmented
+one.)
+
+We can work out the positions in query and ref documents corresponding
+to each position in this alignment.  By "position" here, I refer to an index
+into the 'text' array of the TextSource or Transcript.
+
+Then I suggest that we create scores for each position in the alignment,
+corresponding to how good a position it is to begin or end a split.
+[Note: it might be better to formulate this as a penalty, you decide.]
+
+ - begin a split (i.e. this is first position in a segment)
+    - plus score equal to log(num silence frames this
+      follows, up to some limit like 4.0 sec), i.e. this element
+      of the Transcript's time minus the previous element's time; or some default (4.0 sec)
+      if this is the first element of the Transcript.
+    - good if there are few errors around this point in the alignment, i.e.
+      score corresponding to number of ins,del,mismatch within a certain
+      region of this position.
+    - good if this reference position follows a whitespace character.
+    - good if the previous non-whitespace character was a punctuation
+      character.  (Lists of whitespace and punctuation characters can probably
+      be passed in, or we can use some kind of isspace for utf-8.).
+
+ - end a split (i.e. this is the last position in a segment).
+    - good if more silence follows this position.
+    - good if there are few errors around this point in the alignment, i.e.
+      score corresponding to number of ins,del,mismatch within a certain
+      region of this position.
+    - good if this reference position precedes a whitespace character.
+    - good if this position is a punctuation character.
+
+Each split-begin and split-end position (corresponding to each position in the
+alignment) can be assigned its time position, i.e. what time would we use as the
+start-time or end-time if we (began, ended) the split here.  This can be
+the midpoint between this symbol and the (previous or next) symbol, but up
+to some maximum limit of how much silence we allow, e.g. 1 second; we can maybe
+reduce it later if we need.
+
+We can then create a rule to assign scores to potential segments.    This would
+consist of the begin-scores, plus the end-scores, plus:
+  - Some kind of penalty related to the duration of the segment, e.g.
+    infinity if it's over some max-duration like 30 seconds or less than a
+    min-duration like 2 seconds; else, one that encourages a duration between
+    5 to 20 seconds.
+  - A penalty against long silences inside segments, e.g. compute the
+    longest internal silence and add increasing penalty if it exceeds 2 seconds.
+  - A bonus for the number of matches in the alignment.
+  - A penalty for the number of errors in the alignment (could multiply this by
+    some scale depending how much we don't want to have errors, but some errors
+    are expected due to both ASR errors and normalization differences.)
+
+Next, we can do a search for a good segmentation.  You could define the problem
+as getting the highest-scoring set of segments that do not overlap.  One
+possible way to do it is as follows:
+   For each begin_position in the top 10% of scores, find the 4 best-scoring end_positions
+   For each end_position in the top 10% of scores, find the 4 best-scoring begin_positions
+Append the preceding 2 sets of segments to get a list of candidate segments.
+
+Sort the candidate segments by goodness and choose them from the best to the last,
+always excluding choices that would overlap with already-chosen segments.
+
+When we output the segments we can probably over-specify the information a little
+bit, e.g. as json files, in case we need to know stuff later, but the
+ultimate format of the segments will probably be something like this, e.g.
+as a json file (we can later turn it into a csv if that's convenient):
+
+ - {'id': random_id, 'audio': audio_filename, 'begin_time'=begin_time, 'end_time',
+   'text': text_filename, 'begin_byte': begin_byte, 'end_byte': end_byte}
+[end_byte would be last-byte-plus-one.]
