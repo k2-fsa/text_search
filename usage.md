@@ -14,7 +14,7 @@ cmake ..
 make -j
 make test
 
-# set PYTHONPATH so that you can use "import text_search"
+# set PYTHONPATH so that you can use "import textsearch"
 
 export PYTHONPATH=$PWD/../textsearch/python:$PWD/lib:$PYTHONPATH
 ```

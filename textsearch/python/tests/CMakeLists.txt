@@ -20,6 +20,7 @@ if(FTS_ENABLE_TESTS)
   set(test_srcs
     test_levenshtein_distance.py
     test_suffix_array.py
+    test_text_source.py
   )
 
   foreach(source IN LISTS test_srcs)
