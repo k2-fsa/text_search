@@ -64,6 +64,7 @@ def get_nice_alignments(
         ts = ""
         while k - 1 >= 0:
             if align[1][k] == "0":
+                # a deletion error
                 ts_ = f"{target[j]} "
                 sl = len(ts_)
 
@@ -73,6 +74,7 @@ def get_nice_alignments(
                 j = j - 1
                 k = k - 1
             elif align[1][k] == "1" and align[1][k - 1] == "0":
+                # correct or a substitution error
                 qs_ = f"{query[i]} "
                 ts_ = f"{target[j]} "
                 sl = max(len(qs_), len(ts_))
@@ -87,6 +89,7 @@ def get_nice_alignments(
                 i = i - 1
                 k = k - 2
             else:
+                # an insertion error
                 assert align[1][k] == "1", align[1][k]
                 qs_ = f"{query[i]} "
                 sl = len(qs_)
@@ -99,6 +102,7 @@ def get_nice_alignments(
         if k > 0:
             assert k == 1, k
             if align[1][k] == "0":
+                # a deletion error
                 ts_ = f"{target[j]} "
                 sl = len(ts_)
 
@@ -106,6 +110,7 @@ def get_nice_alignments(
                 ms += f"{'-':>{sl}}"
                 ts += f"{ts_[::-1]:>{sl}}"
             else:
+                # an insertion error
                 assert align[1][k] == "1", align[1][k]
                 qs_ = f"{query[i]} "
                 sl = len(qs_)

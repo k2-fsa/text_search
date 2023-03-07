@@ -79,12 +79,12 @@ class TestSuffixArray(unittest.TestCase):
         # texts will be : "hellohalloiholloyouyouhellome"
         texts = "".join(queries) + "".join(documents)
         texts_array = [ord(x) for x in texts] + [
-            np.iinfo(np.int32).max - 1,
+            np.iinfo(np.int8).max - 1,  # for ascii
             0,
             0,
             0,
         ]
-        texts_array = np.array(texts_array, dtype=np.int32)
+        texts_array = np.array(texts_array, dtype=np.int8)
         suffix_array = create_suffix_array(texts_array)
 
         query_len = len("".join(queries))

@@ -83,27 +83,26 @@ PybindLevenshteinHelper(py::array_t<T, py::array::c_style> &query,
                         py::array_t<T, py::array::c_style> &target,
                         int32_t insert_cost, int32_t delete_cost,
                         int32_t replace_cost) {
-
-  py::buffer_info query_buf = query.request();
-  py::buffer_info target_buf = target.request();
-
-  if (query_buf.ndim != 1)
+  if (query.ndim() != 1)
     throw std::runtime_error("Query MUST be a one dimension array");
-  if (target_buf.ndim != 1)
+
+  if (target.ndim() != 1)
     throw std::runtime_error("Target MUST be a one dimension array");
 
-  T *query_data = static_cast<T *>(query_buf.ptr);
-  T *target_data = static_cast<T *>(target_buf.ptr);
+  auto query_data = query.data();
+  auto target_data = target.data();
 
   std::vector<LevenshteinElement> alignments;
 
   int32_t distance = LevenshteinDistance(
-      query_data, query_buf.size, target_data, target_buf.size, &alignments,
+      query_data, query.size(), target_data, target.size(), &alignments,
       insert_cost, delete_cost, replace_cost);
 
   std::vector<std::pair<int64_t, std::string>> trace;
-  for (const auto align : alignments) {
-    trace.push_back(std::make_pair(align.position, align.backtrace.ToString()));
+  trace.reserve(alignments.size());
+
+  for (const auto &align : alignments) {
+    trace.emplace_back(align.position, align.backtrace.ToString());
   }
 
   return std::make_pair(distance, trace);
