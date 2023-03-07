@@ -46,6 +46,15 @@ class TextSource:
 
 
 def _find_byte_offsets_for_utf8_symbols(binary_text: bytes) -> np.ndarray:
+    """
+    Args:
+      binary_text:
+        A 1-D array containing utf-8 encoded characters.
+    Returns:
+      Return a np.uint32 1-D array. Its length equals to the number of
+      characters contained in binary_text before encoding. ans[i]
+      contains the byte position in binary_text for the i-th character.
+    """
     byte_offsets = []
 
     # Iterate over each byte in the binary text
