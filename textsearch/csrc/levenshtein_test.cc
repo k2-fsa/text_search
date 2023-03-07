@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-#include <gtest/gtest.h>
+#include "gtest/gtest.h"
 
 #include <iostream>
 #include <vector>
@@ -47,4 +47,5 @@ TEST(Levenshtein, TestBasic) {
     EXPECT_EQ(align.backtrace.ToString(), expected_trace[i]);
   }
 }
+
 } // namespace fasttextsearch

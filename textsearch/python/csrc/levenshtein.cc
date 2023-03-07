@@ -64,15 +64,15 @@ Returns:
 >>> print (distance, alignments)
 1 [(3, '01010101'), (8, '0101101')]
 
-The result above indicates that there are two segments in target sequence have the
-same levenshtein distance with query sequence. The levenshtein distance is 1,
+The result above indicates that there are two segments in target sequence having
+the same levenshtein distance with query sequence. The levenshtein distance is 1,
 the end index of first segment into target sequence is 3 ([1,5,3,4]), and the
 end index of second sequence is 8 ([1,2,4]). For the backtrace string, '1' means
 consuming a query symbol, '0' means consuming a target symbol, we can interpret
 the backtrace string like this, from the ending to the beginning, if we meet a
 '1' followed by a '0', it means equal or replacement (consuming both query
 target); if we meet a '1', it means insertion; if we meet a '0', it means
-deletion. So the alignment of first segment is [euqal, replacement, equal, equal],
+deletion. So the alignment of first segment is [equal, replacement, equal, equal],
 the alignment of the second segment is [equal, equal, insertion, equal]. We can
 distinct equal and replacement with the help of query and target sequences.
 )doc";
@@ -83,27 +83,26 @@ PybindLevenshteinHelper(py::array_t<T, py::array::c_style> &query,
                         py::array_t<T, py::array::c_style> &target,
                         int32_t insert_cost, int32_t delete_cost,
                         int32_t replace_cost) {
-
-  py::buffer_info query_buf = query.request();
-  py::buffer_info target_buf = target.request();
-
-  if (query_buf.ndim != 1)
+  if (query.ndim() != 1)
     throw std::runtime_error("Query MUST be a one dimension array");
-  if (target_buf.ndim != 1)
+
+  if (target.ndim() != 1)
     throw std::runtime_error("Target MUST be a one dimension array");
 
-  T *query_data = static_cast<T *>(query_buf.ptr);
-  T *target_data = static_cast<T *>(target_buf.ptr);
+  auto query_data = query.data();
+  auto target_data = target.data();
 
   std::vector<LevenshteinElement> alignments;
 
   int32_t distance = LevenshteinDistance(
-      query_data, query_buf.size, target_data, target_buf.size, &alignments,
+      query_data, query.size(), target_data, target.size(), &alignments,
       insert_cost, delete_cost, replace_cost);
 
   std::vector<std::pair<int64_t, std::string>> trace;
-  for (const auto align : alignments) {
-    trace.push_back(std::make_pair(align.position, align.backtrace.ToString()));
+  trace.reserve(alignments.size());
+
+  for (const auto &align : alignments) {
+    trace.emplace_back(align.position, align.backtrace.ToString());
   }
 
   return std::make_pair(distance, trace);

@@ -43,7 +43,7 @@ def create_suffix_array(input: np.ndarray) -> np.ndarray:
     assert seq_len >= 1, seq_len
     max_symbol = input[seq_len - 1]
     assert max_symbol == np.iinfo(input.dtype).max - 1, max_symbol
-    assert np.alltrue(input[seq_len:] == np.array([0, 0, 0], dtype=input.dtype))
+    assert bool(input[seq_len:].any()) is False, input[seq_len:]
 
     # The C++ code requires the input array to be contiguous.
     input64 = np.ascontiguousarray(input, dtype=np.int64)
@@ -53,7 +53,7 @@ def create_suffix_array(input: np.ndarray) -> np.ndarray:
 def find_close_matches(suffix_array: np.ndarray, query_len: int) -> np.ndarray:
     """
     Assuming the suffix array was created from a text where the first `query_len`
-    positions represented the query text and the remaining positions represent
+    positions represent the query text and the remaining positions represent
     the reference text, return a list indicating, for each suffix position in the query
     text, the two suffix positions in the reference text that immediately precede and
     follow it lexicographically.  (I think suffix position refers to the last character

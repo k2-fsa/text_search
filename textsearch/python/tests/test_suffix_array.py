@@ -79,7 +79,7 @@ class TestSuffixArray(unittest.TestCase):
         # texts will be : "hellohalloiholloyouyouhellome"
         texts = "".join(queries) + "".join(documents)
         texts_array = [ord(x) for x in texts] + [
-            np.iinfo(np.int8).max - 1,
+            np.iinfo(np.int8).max - 1,  # for ascii
             0,
             0,
             0,
@@ -93,7 +93,7 @@ class TestSuffixArray(unittest.TestCase):
         # Take the first token of query as an example, it is 'h', first we
         # will find the element 0 in suffix_array, from the comment lines above,
         # it's the sixth element of suffix_array, the nearest
-        # reference before and after it are the forth and seventh element, so
+        # reference before and after it are the fourth and seventh element, so
         # its close match references are [28, 22].
         # You can check the other tokens the same way.
         # fmt: off
