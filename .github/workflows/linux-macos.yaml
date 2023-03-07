@@ -1,11 +1,11 @@
-name: linux
+name: linux-macos
 
 on:
   push:
     branches:
       - master
     paths:
-      - '.github/workflows/linux.yaml'
+      - '.github/workflows/linux-macos.yaml'
       - 'CMakeLists.txt'
       - 'cmake/**'
       - 'textsearch/csrc/*'
@@ -13,20 +13,20 @@ on:
     branches:
       - master
     paths:
-      - '.github/workflows/linux.yaml'
+      - '.github/workflows/linux-macos.yaml'
       - 'CMakeLists.txt'
       - 'cmake/**'
       - 'textsearch/csrc/*'
 
 concurrency:
-  group: linux-${{ github.ref }}
+  group: linux-macos-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  linux:
+  linux-macos:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
