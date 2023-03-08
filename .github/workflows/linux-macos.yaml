@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - implement-transcript
     paths:
       - '.github/workflows/linux-macos.yaml'
       - 'CMakeLists.txt'
@@ -61,4 +62,4 @@ jobs:
         shell: bash
         run: |
           cd build
-          make test
+          ctest --verbose
