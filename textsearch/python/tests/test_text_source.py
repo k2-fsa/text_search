@@ -24,7 +24,7 @@ class TestTextSource(unittest.TestCase):
         assert isinstance(source.text, str), type(source.text)
         assert source.text == s, (source.text, s)
 
-        assert source.pos is None
+        assert source.pos is None, source.pos
 
     def test_without_using_utf8(self):
         name = "test"
@@ -36,14 +36,14 @@ class TestTextSource(unittest.TestCase):
         assert isinstance(source.binary_text, np.ndarray)
         assert source.binary_text.dtype == np.int32, source.binary_text.dtype
 
-        expected_binary_text = np.array([ord(i) for i in s], dtype=np.int32)
+        expected_binary_text = np.fromiter((ord(i) for i in s), dtype=np.int32)
         np.testing.assert_equal(source.binary_text, expected_binary_text)
 
-        assert isinstance(source.text, str)
+        assert isinstance(source.text, str), type(source.text)
         assert source.text == s, (source.text, s)
 
-        assert isinstance(source.pos, np.ndarray)
-        assert np.issubdtype(source.pos.dtype, np.uint32), source.pos.dtype
+        assert isinstance(source.pos, np.ndarray), type(source.pos)
+        assert source.pos.dtype == np.uint32, source.pos.dtype
         # fmt: off
         # A Polish character occupies 2 bytes in utf-8 while
         # a Chinese character occupies 3 bytes
