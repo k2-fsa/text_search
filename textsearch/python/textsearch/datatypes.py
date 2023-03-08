@@ -38,9 +38,17 @@ class TextSource:
         pos = _find_byte_offsets_for_utf8_symbols(binary_text)
         return TextSource(
             name=str(path),
-            binary_text=np.frombuffer(
-                binary_text, dtype="S1", count=len(binary_text), offset=0
-            ),
+            binary_text=np.frombuffer(binary_text, dtype="S1"),
+            pos=pos,
+        )
+
+    @staticmethod
+    def from_str(name: str, s: str) -> "TextSource":
+        binary_text = s.encode("utf-8")
+        pos = _find_byte_offsets_for_utf8_symbols(binary_text)
+        return TextSource(
+            name=name,
+            binary_text=np.frombuffer(binary_text, dtype="S1"),
             pos=pos,
         )
 
@@ -86,7 +94,6 @@ def _find_byte_offsets_for_utf8_symbols(binary_text: bytes) -> np.ndarray:
     return np.asarray(byte_offsets, dtype=np.uint32)
 
 
-# TODO(pzelasko): test it
 @dataclass
 class Transcript:
     """
@@ -95,7 +102,7 @@ class Transcript:
     transcripts of text into this type as long as we keep track of the time for each symbol.
     """
 
-    # A filename or ID.
+    # A filename or an ID.
     name: str
 
     # the text as a sequence of bytes or (more likely) int32 corresponding to UTF codepoints.
@@ -110,20 +117,49 @@ class Transcript:
         """Return Python string representation of self.binary_text decoded as UTF-8."""
         return self.binary_text.tobytes().decode("utf-8")
 
-    def from_file(self, path: Union[str, Path]) -> "Transcript":
-        # TODO: Decide what should be the format we read here.
-        #
-        #       For prototyping, we can assume it's a JSONL of the following structure:
-        #           {"text": List[str], "begin_times": List[float]}
-        #       where len(text) == len(begin_times), and text can be either a list
-        #       of words, word-pieces, or any other type of token.
-        #       This format assumes the recognizer outputs words/BPEs + begin time stamps,
-        #       but is not able to provide byte-level time stamps.
-        #       We will replicate the begin time for each byte of text corresponding to a given
-        #       token, so it preserves the non-decreasing property.
-        #
-        #       Does that make sense?
-        raise NotImplementedError()
+    @staticmethod
+    def from_dict(name: str, d: dict) -> "Transcript":
+        """
+        Args:
+          name:
+            A filename or an ID.
+          d:
+            A dict containing:
+
+              - d["text"]: List[str]. Each element in the list is a token or a word.
+
+              - d["begin_times]: List[float]. len(d["text"]) == d["begin_times"].
+                d["begin_times"][i] is the begin time for d["text"][i]
+        """
+        assert "text" in d, list(d.keys())
+        assert "begin_times" in d, list(d.keys())
+        assert len(d["text"]) == len(d["begin_times"]), (
+            len(d["text"]),
+            len(d["begin_times"]),
+            d["text"],
+            d["begin_times"],
+        )
+
+        bytes_list = []
+        times_list = []
+        for text, begin_time in zip(d["text"], d["begin_times"]):
+            b = text.encode("utf-8")
+
+            if times_list:
+                # Check that begin_time is non-decreasing.
+                #
+                # < here requires that it is strictly increasing.
+                assert times_list[-1] < begin_time, (times_list[-1], begin_time)
+
+            # bytes belonging to the same text have the same begin time
+            times_list += [begin_time] * len(b)
+            bytes_list.append(b)
+
+        return Transcript(
+            name=name,
+            binary_text=np.frombuffer(b"".join(bytes_list), dtype="S1"),
+            times=np.asarray(times_list, dtype=np.float32),
+        )
 
 
 # we'll have a global list of text sources during the program lifetime, and indexes into this list

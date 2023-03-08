@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 
+import unittest
 from tempfile import NamedTemporaryFile
 
 import numpy as np
-
 from textsearch import TextSource
-
-import unittest
 
 
 class TestTextSource(unittest.TestCase):
