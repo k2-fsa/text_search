@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - master
-      - implement-transcript
     paths:
       - '.github/workflows/linux-macos.yaml'
       - 'CMakeLists.txt'
