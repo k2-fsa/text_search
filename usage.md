@@ -5,6 +5,8 @@ This section describes how to compile and use this project.
 (For developers only)
 
 ```bash
+pip install numpy
+
 git clone https://github.com/danpovey/text_search
 cd text_search
 
