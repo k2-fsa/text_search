@@ -45,6 +45,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Install Python dependencies
+        shell: bash
+        run: |
+          python3 -m pip install numpy
+
       - name: Configure CMake
         shell: bash
         run: |
