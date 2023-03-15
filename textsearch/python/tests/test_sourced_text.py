@@ -13,6 +13,7 @@ from textsearch import texts_to_sourced_texts
 
 class TestSourcedText(unittest.TestCase):
     def test_from_text_source_utf8(self):
+        """Test constructing a SourcedText from a TextSource using utf-8"""
         name = "test_text_source_utf8"
         s = "zażółć gęślą jaźń\n你好Hallo"
         text_source = TextSource.from_str(name=name, s=s, use_utf8=True)
@@ -30,6 +31,7 @@ class TestSourcedText(unittest.TestCase):
         # TODO(fangjun): Test doc_splits. Compute doc_splits on the fly
 
     def test_from_text_source_unicode_code_point(self):
+        """Test constructing a SourcedText from a TextSource using Unicode code point"""
         name = "test_text_source_unicode_code_point"
         s = "zażółć gęślą jaźń\n你好Hallo"
         text_source = TextSource.from_str(name=name, s=s, use_utf8=False)
@@ -46,6 +48,7 @@ class TestSourcedText(unittest.TestCase):
         # TODO(fangjun): Test doc_splits. Compute doc_splits on the fly
 
     def test_from_transcript_utf8(self):
+        """Test constructing a SourcedText from a Transcript using utf-8"""
         name = "test_from_transcript_utf8"
         text = "▁I ▁saw ▁a ▁girl ▁with ▁a ▁ te le s c o pe".split()
         begin_times = []
@@ -69,6 +72,7 @@ class TestSourcedText(unittest.TestCase):
         assert sourced_text[0].sources[0] is transcript
 
     def test_from_transcript_unicode_code_point(self):
+        """Test constructing a SourcedText from a Transcript using Unicode code point"""
         name = "test_from_transcript_unicode_code_point"
         text = "▁I ▁saw ▁a ▁girl ▁with ▁a ▁ te le s c o pe".split()
         begin_times = []
@@ -103,7 +107,45 @@ class TestSourcedText(unittest.TestCase):
         sourced_text0 = texts_to_sourced_texts([text_source0])
         sourced_text1 = texts_to_sourced_texts([text_source1])
         sourced_text = append_texts([sourced_text0[0], sourced_text1[0]])
-        print(sourced_text)
+
+        # check binary_text
+        expected_binary_text = np.concatenate(
+            [text_source0.binary_text, text_source1.binary_text]
+        )
+        np.testing.assert_equal(sourced_text.binary_text, expected_binary_text), (
+            sourced_text.binary_text,
+            expected_binary_text,
+        )
+        assert (
+            sourced_text.binary_text.dtype == np.uint8
+        ), sourced_text.binary_text.dtype
+
+        # check pos
+        expected_pos0 = np.arange(text_source0.binary_text.size, dtype=np.uint32)
+        expected_pos1 = np.arange(text_source1.binary_text.size, dtype=np.uint32)
+        expected_pos = np.concatenate([expected_pos0, expected_pos1])
+        np.testing.assert_equal(sourced_text.pos, expected_pos), (
+            sourced_text.pos,
+            expected_pos,
+        )
+        assert sourced_text.pos.dtype == np.uint32, sourced_text.pos.dtype
+
+        # check doc
+        expected_doc0 = np.zeros(text_source0.binary_text.size, dtype=np.uint32)
+        expected_doc1 = np.ones(text_source1.binary_text.size, dtype=np.uint32)
+        expected_doc = np.concatenate([expected_doc0, expected_doc1])
+        np.testing.assert_equal(sourced_text.doc, expected_doc), (
+            sourced_text.doc,
+            expected_doc,
+        )
+        assert sourced_text.doc.dtype == np.uint32, sourced_text.doc.dtype
+
+        # check sources
+        assert len(sourced_text.sources) == 2, len(sourced_text.sources)
+        assert sourced_text.sources[0] is text_source0
+        assert sourced_text.sources[1] is text_source1
+
+        # TODO(fangjun): Check doc_splits
 
 
 if __name__ == "__main__":
