@@ -28,8 +28,6 @@ class TestSourcedText(unittest.TestCase):
         assert len(sourced_text[0].sources) == 1, len(sourced_text[0].sources)
         assert sourced_text[0].sources[0] is text_source
 
-        # TODO(fangjun): Test doc_splits. Compute doc_splits on the fly
-
     def test_from_text_source_unicode_code_point(self):
         """Test constructing a SourcedText from a TextSource using Unicode code point"""
         name = "test_text_source_unicode_code_point"
@@ -45,7 +43,6 @@ class TestSourcedText(unittest.TestCase):
         assert sourced_text[0].doc == 0, sourced_text[0].doc
         assert len(sourced_text[0].sources) == 1, len(sourced_text[0].sources)
         assert sourced_text[0].sources[0] is text_source
-        # TODO(fangjun): Test doc_splits. Compute doc_splits on the fly
 
     def test_from_transcript_utf8(self):
         """Test constructing a SourcedText from a Transcript using utf-8"""
@@ -145,7 +142,77 @@ class TestSourcedText(unittest.TestCase):
         assert sourced_text.sources[0] is text_source0
         assert sourced_text.sources[1] is text_source1
 
-        # TODO(fangjun): Check doc_splits
+        expected_doc_splits = np.array(
+            [
+                0,
+                text_source0.binary_text.size,
+                text_source0.binary_text.size + text_source1.binary_text.size,
+            ],
+            dtype=np.uint32,
+        )
+        np.testing.assert_equal(sourced_text.doc_splits, expected_doc_splits)
+        assert sourced_text.doc_splits.dtype == np.uint32, sourced_text.doc_splits.dtype
+
+    def test_append_texts_text_source_unicode_code_point(self):
+        name0 = "test_append_texts_text_source_unicode_code_point_0"
+        s0 = "zażółć gęślą jaźń\n"
+        text_source0 = TextSource.from_str(name=name0, s=s0, use_utf8=False)
+
+        name1 = "test_append_texts_text_source_unicode_code_point_1"
+        s1 = "你好Hallo"
+        text_source1 = TextSource.from_str(name=name1, s=s1, use_utf8=False)
+
+        sourced_text0 = texts_to_sourced_texts([text_source0])
+        sourced_text1 = texts_to_sourced_texts([text_source1])
+        sourced_text = append_texts([sourced_text0[0], sourced_text1[0]])
+
+        # check binary_text
+        expected_binary_text = np.concatenate(
+            [text_source0.binary_text, text_source1.binary_text]
+        )
+        np.testing.assert_equal(sourced_text.binary_text, expected_binary_text), (
+            sourced_text.binary_text,
+            expected_binary_text,
+        )
+        assert (
+            sourced_text.binary_text.dtype == np.int32
+        ), sourced_text.binary_text.dtype
+
+        # check pos
+        expected_pos0 = np.arange(text_source0.binary_text.size, dtype=np.uint32)
+        expected_pos1 = np.arange(text_source1.binary_text.size, dtype=np.uint32)
+        expected_pos = np.concatenate([expected_pos0, expected_pos1])
+        np.testing.assert_equal(sourced_text.pos, expected_pos), (
+            sourced_text.pos,
+            expected_pos,
+        )
+        assert sourced_text.pos.dtype == np.uint32, sourced_text.pos.dtype
+
+        # check doc
+        expected_doc0 = np.zeros(text_source0.binary_text.size, dtype=np.uint32)
+        expected_doc1 = np.ones(text_source1.binary_text.size, dtype=np.uint32)
+        expected_doc = np.concatenate([expected_doc0, expected_doc1])
+        np.testing.assert_equal(sourced_text.doc, expected_doc), (
+            sourced_text.doc,
+            expected_doc,
+        )
+        assert sourced_text.doc.dtype == np.uint32, sourced_text.doc.dtype
+
+        # check sources
+        assert len(sourced_text.sources) == 2, len(sourced_text.sources)
+        assert sourced_text.sources[0] is text_source0
+        assert sourced_text.sources[1] is text_source1
+
+        expected_doc_splits = np.array(
+            [
+                0,
+                text_source0.binary_text.size,
+                text_source0.binary_text.size + text_source1.binary_text.size,
+            ],
+            dtype=np.uint32,
+        )
+        np.testing.assert_equal(sourced_text.doc_splits, expected_doc_splits)
+        assert sourced_text.doc_splits.dtype == np.uint32, sourced_text.doc_splits.dtype
 
 
 if __name__ == "__main__":
