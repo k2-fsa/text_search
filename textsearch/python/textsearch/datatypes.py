@@ -4,6 +4,8 @@ from itertools import chain
 from pathlib import Path
 from typing import List, Optional, Union
 
+from .utils import row_ids_to_row_splits
+
 import numpy as np
 
 
@@ -239,7 +241,17 @@ class SourcedText:
     # Optional: an array derived from `doc` which is like the row
     # splits in k2 (or in tensorflow ragged arrays), with `doc` being
     # the row-ids.
-    doc_splits: Optional[np.ndarray] = None
+    _doc_splits: Optional[np.ndarray] = None
+
+    @property
+    def doc_splits(self) -> np.ndarray:
+        assert isinstance(self.doc, np.ndarray), type(self.doc)
+        if self._doc_splits is not None:
+            return self._doc_splits
+
+        self._doc_splits = row_ids_to_row_splits(self.doc)
+
+        return self._doc_splits
 
 
 def texts_to_sourced_texts(sources: TextSources) -> List[SourcedText]:
@@ -264,7 +276,6 @@ def texts_to_sourced_texts(sources: TextSources) -> List[SourcedText]:
                 pos=pos,
                 doc=0,  # indexes into the following `sources` attribte
                 sources=[s],
-                doc_splits=None,
             )
         )
 
@@ -309,14 +320,11 @@ def append_texts(texts: List[SourcedText]) -> SourcedText:
 
     sources = [s for t in texts for s in t.sources]
 
-    # TODO(fangjun: Add row_ids_to_row_splits() to compute doc_splits from doc
-
     return SourcedText(
         binary_text=binary_text,
         pos=pos,
         doc=doc,
         sources=sources,
-        doc_splits=None,
     )
 
 
