@@ -1,5 +1,6 @@
 set(textsearch_srcs
   suffix_array.cc
+  utils.cc
 )
 
 add_library(textsearch_core ${textsearch_srcs})
