@@ -19,7 +19,7 @@ from typing import List, Tuple
 
 
 def get_nice_alignments(
-    alignments: List[Tuple[int, str]], query: np.ndarray, target: np.ndarray
+    alignments: List[Tuple[int, int, str]], query: np.ndarray, target: np.ndarray
 ) -> List[str]:
     """
     Get the alignment of the matched segments.
@@ -57,66 +57,44 @@ def get_nice_alignments(
     results = []
     for align in alignments:
         j = align[0]
-        i = len(query) - 1
-        k = len(align[1]) - 1
+        i = 0
+        ali_seq = align[2]
         qs = ""
         ms = ""
         ts = ""
-        while k - 1 >= 0:
-            if align[1][k] == "0":
+        for k in ali_seq:
+            if k == "D":
                 # a deletion error
                 ts_ = f"{target[j]} "
                 sl = len(ts_)
 
-                qs += f"{'*':>{sl}}"
-                ms += f"{'-':>{sl}}"
-                ts += f"{ts_[::-1]:>{sl}}"
-                j = j - 1
-                k = k - 1
-            elif align[1][k] == "1" and align[1][k - 1] == "0":
+                qs += f"{'*':{sl}}"
+                ms += f"{'-':{sl}}"
+                ts += f"{ts_:{sl}}"
+                j = j + 1
+            elif k == "R" or k == "E":
                 # correct or a substitution error
                 qs_ = f"{query[i]} "
                 ts_ = f"{target[j]} "
                 sl = max(len(qs_), len(ts_))
 
-                qs += f"{qs_[::-1]:>{sl}}"
-                ts += f"{ts_[::-1]:>{sl}}"
-                if query[i] == target[j]:
-                    ms += f"{'|':>{sl}}"
+                qs += f"{qs_:{sl}}"
+                ts += f"{ts_:{sl}}"
+                if k == "E":
+                    ms += f"{'|':{sl}}"
                 else:
-                    ms += f"{'#':>{sl}}"
-                j = j - 1
-                i = i - 1
-                k = k - 2
+                    ms += f"{'#':{sl}}"
+                j = j + 1
+                i = i + 1
             else:
                 # an insertion error
-                assert align[1][k] == "1", align[1][k]
+                assert k == "I", k
                 qs_ = f"{query[i]} "
                 sl = len(qs_)
 
-                qs += f"{qs_[::-1]:>{sl}}"
-                ms += f"{'+':>{sl}}"
-                ts += f"{'*':>{sl}}"
-                i = i - 1
-                k = k - 1
-        if k > 0:
-            assert k == 1, k
-            if align[1][k] == "0":
-                # a deletion error
-                ts_ = f"{target[j]} "
-                sl = len(ts_)
-
-                qs += f"{'*':>{sl}}"
-                ms += f"{'-':>{sl}}"
-                ts += f"{ts_[::-1]:>{sl}}"
-            else:
-                # an insertion error
-                assert align[1][k] == "1", align[1][k]
-                qs_ = f"{query[i]} "
-                sl = len(qs_)
-
-                qs += f"{qs_[::-1]:>{sl}}"
-                ms += f"{'+':>{sl}}"
-                ts += f"{'*':>{sl}}"
-        results.append("\n".join([qs[::-1], ms[::-1], ts[::-1]]))
+                qs += f"{qs_:{sl}}"
+                ms += f"{'+':{sl}}"
+                ts += f"{'*':{sl}}"
+                i = i + 1
+        results.append("\n".join([qs, ms, ts]))
     return results
