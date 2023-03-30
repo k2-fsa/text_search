@@ -18,7 +18,9 @@
 
 #include "gtest/gtest.h"
 
-#include <iostream>
+#include <cstdlib>
+#include <ctime>
+#include <sstream>
 #include <vector>
 
 #include "textsearch/csrc/levenshtein.h"
@@ -47,6 +49,59 @@ TEST(Levenshtein, TestBasic) {
     EXPECT_EQ(align.end, expected_end[i]);
     EXPECT_EQ(align.align, expected_align[i]);
   }
+}
+
+TEST(Levenshtein, TestRandom) {
+  std::srand(std::time(0)); // use current time as seed for random generator
+  int32_t ref_len = std::rand() % 1000 + 10000;
+  int32_t start = std::rand() % 1000 + 1000;
+  int32_t query_len = std::rand() % 1000 + 1000;
+  std::vector<int32_t> ref(ref_len);
+  for (int32_t i = 0; i < ref_len; ++i)
+    ref[i] = i;
+  std::vector<int32_t> query;
+
+  std::ostringstream oss;
+  int32_t cost = 0;
+  int32_t prev_type = 0;
+  for (int32_t i = start; i < query_len + start; ++i) {
+    // 0: I, 1: D, 2: R, other : E
+    int32_t type = std::rand() % 25;
+    // No successive errors
+    if (prev_type < 3 && type < 3) {
+      type = 4;
+      prev_type = 4;
+    } else {
+      prev_type = type;
+    }
+    if (type == 0) {
+      query.push_back(ref_len);
+      query.push_back(ref[i]);
+      oss << "IE";
+      cost += 1;
+    } else if (type == 1) {
+      oss << "D";
+      cost += 1;
+    } else if (type == 2) {
+      query.push_back(ref_len);
+      oss << "R";
+      cost += 1;
+    } else {
+      query.push_back(ref[i]);
+      oss << "E";
+    }
+  }
+  auto align_str = oss.str();
+  std::vector<AlignItem> alignments;
+  auto result = LevenshteinDistance(query.data(), query.size(), ref.data(),
+                                    ref.size(), &alignments);
+  EXPECT_EQ(result, cost);
+  EXPECT_EQ(alignments.size(), 1);
+  auto &align = alignments[0];
+  EXPECT_EQ(align.cost, cost);
+  EXPECT_EQ(align.start, start);
+  EXPECT_EQ(align.end, start + query_len - 1);
+  EXPECT_EQ(align.align, align_str);
 }
 
 } // namespace fasttextsearch

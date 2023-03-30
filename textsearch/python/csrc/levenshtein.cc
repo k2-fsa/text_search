@@ -96,7 +96,7 @@ PybindLevenshteinHelper(py::array_t<T, py::array::c_style> &query,
   trace.reserve(alignments.size());
 
   for (const auto &align : alignments) {
-    trace.emplace_back(align.start, align.end, align.align);
+    trace.push_back(std::make_tuple(align.start, align.end, align.align));
   }
 
   return std::make_pair(distance, trace);

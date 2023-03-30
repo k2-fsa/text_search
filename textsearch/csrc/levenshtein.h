@@ -74,7 +74,7 @@ struct Backtrace {
    */
   void Update(bool update_bitmap) {
     if (update_bitmap)
-      bitmap |= 1 << num_bits;
+      bitmap |= (int64_t)1 << num_bits;
 
     num_bits++;
 
@@ -82,7 +82,7 @@ struct Backtrace {
       if (prev == nullptr) {
         prev = std::make_shared<DynamicBacktrace>(bitmap);
       } else {
-        prev = std::make_shared<DynamicBacktrace>(bitmap, prev->prev);
+        prev = std::make_shared<DynamicBacktrace>(bitmap, prev);
       }
       bitmap = 0;
       num_bits = 0;
