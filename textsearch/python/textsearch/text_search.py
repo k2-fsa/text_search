@@ -24,6 +24,15 @@ from .suffix_array import create_suffix_array
 class TextSource:
     name: str  # might be a filename
     text: np.ndarray  # the text, probably as a sequence of bytes but could be utf-32 i.e. np.uint32.
+    @staticmethod
+    def from_file(file_name: str) -> "TextSource":
+        with open(file_name, "r") as f:
+            texts = []
+            for line in f.readlines():
+                texts.append(line.strip())
+            texts = " ".join(texts)
+            # Only support ascii now.
+            return TextSource(name=file_name, text=np.array([ord(x) for x in texts], dtype=np.int8))
     # Length of the array may not be >= 2**32.
 
 
@@ -91,14 +100,15 @@ def find_candidate_matches(
        A list, one per query document, of close matches, where each close match
        is a (begin, end) position within `text`.
     """
-    assert close_matches.ndim == 1, close_matches.ndim
-    assert close_matches.size % 2 == 0, close_matches.size
-    tot_query_symbols = close_matches.size // 2
+    assert close_matches.ndim == 2, close_matches.ndim
+    # assert close_matches.size % 2 == 0, close_matches.size
+    tot_query_symbols, num_close_matches = close_matches.shape
     assert text.text.size > tot_query_symbols, (text.text.size, tot_query_symbols)
 
     # can we assert the query docs are sorted by doc ids ?
     num_query_docs = np.unique(text.doc[0:tot_query_symbols]).size
-    assert num_query_docs == text.doc[tot_query_symbols]
+    print (text.doc[0:tot_query_symbols+1])
+    assert num_query_docs == text.doc[tot_query_symbols], (num_query_docs, text.doc[tot_query_symbols])
 
     row_splits = np.zeros(num_query_docs + 1, dtype=np.int64)
     for i in range(1, tot_query_symbols + 1):
@@ -108,13 +118,13 @@ def find_candidate_matches(
     candidate_matches = []
 
     for q in range(num_query_docs):
-        matches_start_pos = 2 * row_splits[q]
-        matches_end_pos = 2 * row_splits[q + 1]
+        matches_start_pos = row_splits[q]
+        matches_end_pos = row_splits[q + 1]
         current_query_len = row_splits[q + 1] - row_splits[q]
         reference_chunk_length = current_query_len * length_ratio
 
         current_close_matches = np.sort(
-            close_matches[matches_start_pos:matches_end_pos]
+                close_matches[matches_start_pos:matches_end_pos, :].flatten()
         )
 
         # (start pos in reference, end pos in reference, hits)

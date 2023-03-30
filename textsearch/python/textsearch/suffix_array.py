@@ -50,7 +50,7 @@ def create_suffix_array(input: np.ndarray) -> np.ndarray:
     return _fasttextsearch.create_suffix_array(input64)
 
 
-def find_close_matches(suffix_array: np.ndarray, query_len: int) -> np.ndarray:
+def find_close_matches(suffix_array: np.ndarray, query_len: int, num_close_matches: int) -> np.ndarray:
     """
     Assuming the suffix array was created from a text where the first `query_len`
     positions represented the query text and the remaining positions represent
@@ -89,25 +89,26 @@ def find_close_matches(suffix_array: np.ndarray, query_len: int) -> np.ndarray:
     seq_len = suffix_array.size
     assert query_len < seq_len, (query_len, seq_len)
 
-    output = np.empty(query_len * 2, dtype=suffix_array.dtype)
+    output = np.empty((query_len, num_close_matches * 2), dtype=suffix_array.dtype)
+
+    prev_refs = [seq_len - 2] * num_close_matches
+    unfinished_q = {}
 
     last_pos = -1
+    refs_index = 0
     for i in range(seq_len):
         text_pos = suffix_array[i]
         if text_pos >= query_len:
-            for j in range(last_pos + 1, i):
-                query_pos = suffix_array[j]
-                if query_pos < query_len:
-                    # set to `seq_len - 2` if no precede references
-                    precede_ref_pos = (
-                        seq_len - 2 if last_pos == -1 else suffix_array[last_pos]
-                    )
-                    # set to `seq_len - 2` if meet EOS
-                    follow_ref_pos = (
-                        seq_len - 2 if text_pos == seq_len - 1 else text_pos
-                    )
-
-                    output[2 * query_pos] = precede_ref_pos
-                    output[2 * query_pos + 1] = follow_ref_pos
-            last_pos = i
+            prev_refs[refs_index % num_close_matches] = text_pos
+            refs_index += 1
+            for k in list(unfinished_q):
+                output[k][unfinished_q[k]] = text_pos
+                if unfinished_q[k] == num_close_matches * 2 -1:
+                    del unfinished_q[k]
+                else:
+                    unfinished_q[k] += 1
+        else:
+            for i in range(num_close_matches):
+                output[text_pos][i] = prev_refs[i]
+            unfinished_q[text_pos] = num_close_matches
     return output
