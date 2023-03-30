@@ -321,6 +321,9 @@ int32_t LevenshteinDistance(const T *query, size_t query_length,
     std::ostringstream oss;
     auto &align = raw_alignments[i];
     int64_t j = align.position;
+    // Extracting alignments from backtrace strings rather than bitmaps (i.e. by
+    // bit operations) here is just for easier implementation, I think it will
+    // not affect the efficiency too much.
     std::string backtrace = align.backtrace.ToString();
     int64_t m = query_length - 1;
     int64_t n = backtrace.size() - 1;
