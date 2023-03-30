@@ -52,9 +52,8 @@ Args:
 Returns:
   Return a tuple which has two elements, the first element is the levenshtein
   distance, the second element is a list of tuple, each tuple in the list has
-  `end_position` (index into the target sequence) and `alignment`
-  (`0,1` string containing the backtrace). See the examples below for more
-  details.
+  `start` and `end` (index into the target sequence) and `alignment`
+  See the examples below for more details.
 
 >>> from textsearch import levenshtein_distance
 >>> import numpy as np
@@ -62,23 +61,18 @@ Returns:
 >>> target = np.array([1, 5, 3, 4, 6, 7, 1, 2, 4], dtype=np.int32)
 >>> distance, alignments = levenshtein_distance(query, target)
 >>> print (distance, alignments)
-1 [(3, '01010101'), (8, '0101101')]
+1 [(0, 3, 'EREE'), (6, 8, 'EEIE')]
 
 The result above indicates that there are two segments in target sequence having
 the same levenshtein distance with query sequence. The levenshtein distance is 1,
 the end index of first segment into target sequence is 3 ([1,5,3,4]), and the
-end index of second sequence is 8 ([1,2,4]). For the backtrace string, '1' means
-consuming a query symbol, '0' means consuming a target symbol, we can interpret
-the backtrace string like this, from the ending to the beginning, if we meet a
-'1' followed by a '0', it means equal or replacement (consuming both query
-target); if we meet a '1', it means insertion; if we meet a '0', it means
-deletion. So the alignment of first segment is [equal, replacement, equal, equal],
-the alignment of the second segment is [equal, equal, insertion, equal]. We can
-distinct equal and replacement with the help of query and target sequences.
+end index of second sequence is 8 ([1,2,4]). For the align string, `I` means
+insertion, `D` means deletion, `R` means replacement, `E` means equal.
 )doc";
 
 template <typename T>
-static std::pair<int32_t, std::vector<std::pair<int64_t, std::string>>>
+static std::pair<int32_t,
+                 std::vector<std::tuple<int64_t, int64_t, std::string>>>
 PybindLevenshteinHelper(py::array_t<T, py::array::c_style> &query,
                         py::array_t<T, py::array::c_style> &target,
                         int32_t insert_cost, int32_t delete_cost,
@@ -92,17 +86,17 @@ PybindLevenshteinHelper(py::array_t<T, py::array::c_style> &query,
   auto query_data = query.data();
   auto target_data = target.data();
 
-  std::vector<LevenshteinElement> alignments;
+  std::vector<AlignItem> alignments;
 
-  int32_t distance = LevenshteinDistance(
-      query_data, query.size(), target_data, target.size(), &alignments,
-      insert_cost, delete_cost, replace_cost);
+  int32_t distance =
+      LevenshteinDistance(query_data, query.size(), target_data, target.size(),
+                          &alignments, insert_cost, delete_cost, replace_cost);
 
-  std::vector<std::pair<int64_t, std::string>> trace;
+  std::vector<std::tuple<int64_t, int64_t, std::string>> trace;
   trace.reserve(alignments.size());
 
   for (const auto &align : alignments) {
-    trace.emplace_back(align.position, align.backtrace.ToString());
+    trace.emplace_back(align.start, align.end, align.align);
   }
 
   return std::make_pair(distance, trace);

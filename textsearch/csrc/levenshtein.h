@@ -205,6 +205,30 @@ struct LevenshteinElement {
 };
 
 /*
+ * AlignItem contains the start position and end position into the target
+ * sequence and also the cost and the corresponding alignment info representing
+ * as a string with 4 characters: 'I' (insertion), 'D' (Deletion), 'R'
+ * (Replacement), 'E' (Equal)
+ */
+struct AlignItem {
+  int64_t start;
+  int64_t end;
+  int32_t cost;
+  std::string align;
+
+  AlignItem(int64_t start, int64_t end, int32_t cost, const std::string &align)
+      : start(start), end(end), cost(cost), align(align) {}
+
+  AlignItem() = default;
+
+  AlignItem &operator=(const AlignItem &src) = default;
+  AlignItem(const AlignItem &src) = default;
+  // Move constructor
+  AlignItem(AlignItem &&src) = default;
+  AlignItem &operator=(AlignItem &&src) = default;
+};
+
+/*
  * Calculate the levenshtein distance between query and target and also return
  * the alignments (can be constructed from backtrace in LevenshteinElement).
  *
@@ -233,9 +257,12 @@ struct LevenshteinElement {
 template <typename T>
 int32_t LevenshteinDistance(const T *query, size_t query_length,
                             const T *target, size_t target_length,
-                            std::vector<LevenshteinElement> *alignments,
+                            std::vector<AlignItem> *alignments,
                             int32_t insert_cost = 1, int32_t delete_cost = 1,
                             int32_t replace_cost = 1) {
+
+  assert(alignments != nullptr);
+  std::vector<LevenshteinElement> raw_alignments;
 
   LevenshteinElement best_score = LevenshteinElement(-1);
 
@@ -279,12 +306,59 @@ int32_t LevenshteinDistance(const T *query, size_t query_length,
     auto score = scores[query_length];
     if (best_score.cost == -1 || score.cost <= best_score.cost) {
       if (score.cost < best_score.cost) {
-        alignments->clear();
+        raw_alignments.clear();
       }
       best_score = score;
       score.position = j - 1;
-      alignments->push_back(score);
+      raw_alignments.push_back(score);
     }
+  }
+
+  // Extract alignments from backtraces.
+  alignments->resize(raw_alignments.size());
+  for (size_t i = 0; i < raw_alignments.size(); ++i) {
+    std::ostringstream oss;
+    auto &align = raw_alignments[i];
+    int64_t j = align.position;
+    // Extracting alignments from backtrace strings rather than bitmaps (i.e. by
+    // bit operations) here is just for easier implementation, I think it will
+    // not affect the efficiency too much.
+    std::string backtrace = align.backtrace.ToString();
+    int64_t m = query_length - 1;
+    int64_t n = backtrace.size() - 1;
+    while (n - 1 >= 0) {
+      if (backtrace[n] == '0') {
+        // Deletion error
+        j -= 1;
+        n -= 1;
+        oss << "D";
+      } else if (backtrace[n] == '1' && backtrace[n - 1] == '0') {
+        if (query[m] == target[j])
+          oss << "E"; // Equal
+        else
+          oss << "R"; // Replacement error
+        j -= 1;
+        m -= 1;
+        n -= 2;
+      } else { // Insertion error
+        m -= 1;
+        n -= 1;
+        oss << "I";
+      }
+    }
+    if (n >= 0) {
+      assert(n == 0);
+      if (backtrace[n] == '0') {
+        j -= 1;
+        oss << "D"; // Deletion error
+      } else {
+        m -= 1;
+        oss << "I"; // Insertion error
+      }
+    }
+    auto ali_str = oss.str();
+    std::reverse(ali_str.begin(), ali_str.end());
+    (*alignments)[i] = AlignItem(j + 1, align.position, align.cost, ali_str);
   }
   return best_score.cost;
 }

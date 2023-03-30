@@ -30,21 +30,22 @@ TEST(Levenshtein, TestBasic) {
   auto target = std::vector<int32_t>({1, 4, 5, 3, 7, 8, 9, 5, 3, 6, 3, 4, 5, 6,
                                       7, 8, 2, 3, 5, 1, 2, 3, 4, 5, 6, 7, 8});
 
-  std::vector<LevenshteinElement> alignments;
+  std::vector<AlignItem> alignments;
   auto result = LevenshteinDistance(query.data(), query.size(), target.data(),
                                     target.size(), &alignments);
 
   EXPECT_EQ(result, 2);
   EXPECT_EQ(alignments.size(), 4);
-  auto expected_position = std::vector<int32_t>({6, 15, 16, 26});
-  auto expected_trace =
-      std::vector<std::string>({"011010101010101", "10101010101011",
-                                "101010101010101", "0100101010101011"});
+  auto expected_end = std::vector<int64_t>({6, 15, 16, 26});
+  auto expected_start = std::vector<int64_t>({0, 10, 10, 19});
+  auto expected_align = std::vector<std::string>(
+      {"EIEEREEE", "IEEEEEEI", "IEEEEEER", "EDEEEEEEI"});
   for (size_t i = 0; i < alignments.size(); ++i) {
-    auto align = alignments[i];
+    auto &align = alignments[i];
     EXPECT_EQ(align.cost, 2);
-    EXPECT_EQ(align.position, expected_position[i]);
-    EXPECT_EQ(align.backtrace.ToString(), expected_trace[i]);
+    EXPECT_EQ(align.start, expected_start[i]);
+    EXPECT_EQ(align.end, expected_end[i]);
+    EXPECT_EQ(align.align, expected_align[i]);
   }
 }
 
