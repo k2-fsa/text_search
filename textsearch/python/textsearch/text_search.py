@@ -110,6 +110,6 @@ def find_candidate_matches(
             current_candidates = sorted(
                 current_candidates, key=lambda s: s[2], reverse=True
             )
-            current_candidates = [0:num_candidates]
+            current_candidates = current_candidates[0:num_candidates]
         candidate_matches.append([(c[0], c[1]) for c in current_candidates])
     return candidate_matches
