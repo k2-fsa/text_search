@@ -74,9 +74,9 @@ TEST(Levenshtein, TestRandom) {
     } else {
       prev_type = type;
     }
-    // last char should not be an error, R and I have same cost, but different
-    // end position.
-    if (i == query_len + start - 1)
+    // The suffix chars should be right, R and I have same cost, but
+    // different end position.
+    if (i > query_len + start - 10)
       type = 4;
     if (type == 0) {
       query.push_back(ref_len);
