@@ -42,7 +42,7 @@ def create_suffix_array(input: np.ndarray) -> np.ndarray:
     seq_len = input.size - 3
     assert seq_len >= 1, seq_len
     max_symbol = input[seq_len - 1]
-    assert max_symbol == np.iinfo(input.dtype).max - 1, max_symbol
+    assert max_symbol > np.max(input[0: seq_len - 1])
     assert bool(input[seq_len:].any()) is False, input[seq_len:]
 
     # The C++ code requires the input array to be contiguous.
@@ -50,7 +50,9 @@ def create_suffix_array(input: np.ndarray) -> np.ndarray:
     return _fasttextsearch.create_suffix_array(input64)
 
 
-def find_close_matches(suffix_array: np.ndarray, query_len: int, num_close_matches: int) -> np.ndarray:
+def find_close_matches(
+    suffix_array: np.ndarray, query_len: int, num_close_matches: int
+) -> np.ndarray:
     """
     Assuming the suffix array was created from a text where the first `query_len`
     positions represent the query text and the remaining positions represent
@@ -94,16 +96,15 @@ def find_close_matches(suffix_array: np.ndarray, query_len: int, num_close_match
     prev_refs = [seq_len - 2] * num_close_matches
     unfinished_q = {}
 
-    last_pos = -1
     refs_index = 0
-    for i in range(seq_len):
+    for i in range(seq_len - 1):
         text_pos = suffix_array[i]
         if text_pos >= query_len:
             prev_refs[refs_index % num_close_matches] = text_pos
             refs_index += 1
             for k in list(unfinished_q):
                 output[k][unfinished_q[k]] = text_pos
-                if unfinished_q[k] == num_close_matches * 2 -1:
+                if unfinished_q[k] == num_close_matches * 2 - 1:
                     del unfinished_q[k]
                 else:
                     unfinished_q[k] += 1
