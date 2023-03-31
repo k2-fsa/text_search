@@ -137,7 +137,11 @@ class Transcript:
     @property
     def text(self) -> str:
         """Return Python string representation of self.binary_text decoded as UTF-8."""
-        return self.binary_text.tobytes().decode("utf-8")
+        if self.binary_text.dtype == np.uint8:
+            return self.binary_text.tobytes().decode("utf-8")
+        else:
+            assert self.binary_text.dtype == np.int32, self.binary_text.dtype
+            return "".join([chr(i) for i in self.binary_text])
 
     @staticmethod
     def from_dict(name: str, d: dict, use_utf8: bool) -> "Transcript":
