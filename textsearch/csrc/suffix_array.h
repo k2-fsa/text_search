@@ -34,6 +34,7 @@ namespace fasttextsearch {
            The suffixes of this array are to be sorted.  Logically this
            array has length `seq_len`, and symbols are required
            to be in the range [1..max_symbol].
+           text_array[seq_len-1] == id of the termination symbol
            text_array is additionally required to be terminated by 3 zeros,
            for purposes of this algorithm, i.e.
            text_array[seq_len] == text_array[seq_len+1]
@@ -41,20 +42,21 @@ namespace fasttextsearch {
     @param [in] seq_len  Length of the symbol sequence (`text_array`
             must be longer than this by at least 3, for termination.)
             Require seq_len >= 0
-    @param [out] suffix_array   A pre-allocated array of length
-             `seq_len`.  At exit it will contain a permutation of
-             the list [ 0, 1, ... seq_len  - 1 ], interpreted
-             as the start indexes of the nonempty suffixes of `text_array`,
-             with the property that the sub-arrays of `text_array`
-             starting at these positions are lexicographically sorted.
-             For example, as a trivial case, if seq_len = 3
-             and text_array contains [ 3, 2, 1, 10, 0, 0, 0 ], then
-             `suffix_array` would contain [ 2, 1, 0, 3 ] at exit.
     @param [in] max_symbol  A number that must be >= the largest
              number that might be in `text_array`, including the
              termination symbol.  The work done
              is O(seq_len + max_symbol), so it is not advisable
              to let max_symbol be too large.
+    @param [out] suffix_array   A pre-allocated array of length
+             `seq_len`.  At exit it will contain a permutation of
+             the list [ 0, 1, ... seq_len  - 1 ], interpreted
+             as the start indexes of the nonempty suffixes of `text_array`,
+             with the property that the sub-arrays of `text_array`
+             starting at these positions are lexicographically sorted in
+             descending order.
+             For example, as a trivial case, if seq_len = 3
+             and text_array contains [ 3, 2, 1, 10, 0, 0, 0 ], then
+             `suffix_array` would contain [ 2, 1, 0, 3 ] at exit.
     Caution: this function allocates memory internally (although
     not much more than `text_array` itself).
  */

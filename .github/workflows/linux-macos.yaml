@@ -1,0 +1,71 @@
+name: linux-macos
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/linux-macos.yaml'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'textsearch/csrc/*'
+      - 'textsearch/python/*'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/linux-macos.yaml'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'textsearch/csrc/*'
+      - 'textsearch/python/*'
+
+concurrency:
+  group: linux-macos-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  linux-macos:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.8", "3.9", "3.10"]
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Python dependencies
+        shell: bash
+        run: |
+          python3 -m pip install numpy
+
+      - name: Configure CMake
+        shell: bash
+        run: |
+          mkdir build
+          cd build
+          cmake -D CMAKE_BUILD_TYPE=Release ..
+
+      - name: Build textsearch for ubuntu
+        shell: bash
+        run: |
+          cd build
+          make -j2
+
+      - name: Run tests
+        shell: bash
+        run: |
+          cd build
+          ctest --verbose

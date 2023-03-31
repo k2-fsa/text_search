@@ -33,8 +33,8 @@ class TestLevenshtein(unittest.TestCase):
         distance, alignments = levenshtein_distance(query, target)
         self.assertTrue(distance == 1)
         self.assertTrue(len(alignments) == 2)
-        self.assertTrue(alignments[0] == (3, "01010101"))
-        self.assertTrue(alignments[1] == (8, "0101101"))
+        self.assertTrue(alignments[0] == (0, 3, "EREE"))
+        self.assertTrue(alignments[1] == (6, 8, "EEIE"))
 
     def test_get_nice_alignments(self):
         query = np.array([10, 234, 98745, 14, 8], dtype=np.int32)

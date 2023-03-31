@@ -6,6 +6,7 @@
 
 #include "textsearch/python/csrc/levenshtein.h"
 #include "textsearch/python/csrc/suffix_array.h"
+#include "textsearch/python/csrc/utils.h"
 
 namespace fasttextsearch {
 
@@ -14,6 +15,7 @@ PYBIND11_MODULE(_fasttextsearch, m) {
 
   PybindLevenshtein(m);
   PybindSuffixArray(m);
+  PybindUtils(m);
 }
 
 } // namespace fasttextsearch
