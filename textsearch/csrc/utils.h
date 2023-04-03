@@ -4,6 +4,7 @@
 
 #ifndef TEXTSEARCH_CSRC_UTILS_H_
 #define TEXTSEARCH_CSRC_UTILS_H_
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 
