@@ -52,8 +52,7 @@ void GetNew2Old(const bool *keep, size_t num_old_elems,
     if (i == old2new.size() - 1 || old2new[i + 1] > old2new[i])
       (*new2old)[old2new[i]] = i;
   }
-  *new2old = std::vector<uint64_t>(new2old->begin(),
-                                   new2old->begin() + new2old->size() - 1);
+  new2old->resize(num_new_elems);
 }
 
 } // namespace fasttextsearch
