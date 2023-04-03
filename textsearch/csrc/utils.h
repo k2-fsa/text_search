@@ -5,6 +5,7 @@
 #ifndef TEXTSEARCH_CSRC_UTILS_H_
 #define TEXTSEARCH_CSRC_UTILS_H_
 #include <cstdint>
+#include <vector>
 
 namespace fasttextsearch {
 
@@ -24,6 +25,11 @@ namespace fasttextsearch {
 void RowIdsToRowSplits(int32_t num_elems, const uint32_t *row_ids,
                        int32_t num_rows, uint32_t *row_splits);
 
+/** This function is copied/modified from
+ * https://github.com/k2-fsa/k2/blob/master/k2/csrc/algorithms.h
+ */
+void GetNew2Old(const bool *keep, size_t num_old_elems,
+                std::vector<uint64_t> *new2old);
 } // namespace fasttextsearch
 
 #endif // TEXTSEARCH_CSRC_UTILS_H_
