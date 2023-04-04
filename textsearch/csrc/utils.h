@@ -37,8 +37,8 @@ void RowIdsToRowSplits(int32_t num_elems, const uint32_t *row_ids,
  *                       Its dimension is the number of new indexes
  *                       (i.e. the number of true in keep)
  */
-void GetNew2Old(const bool *keep, size_t num_old_elems,
-                std::vector<uint64_t> *new2old);
+void GetNew2Old(const bool *keep, uint32_t num_old_elems,
+                std::vector<uint32_t> *new2old);
 } // namespace fasttextsearch
 
 #endif // TEXTSEARCH_CSRC_UTILS_H_

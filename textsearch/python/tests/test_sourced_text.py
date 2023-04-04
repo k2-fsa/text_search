@@ -8,6 +8,7 @@ from textsearch import SourcedText
 from textsearch import TextSource
 from textsearch import Transcript
 from textsearch import append_texts
+from textsearch import filter_texts
 from textsearch import texts_to_sourced_texts
 
 
@@ -213,6 +214,39 @@ class TestSourcedText(unittest.TestCase):
         )
         np.testing.assert_equal(sourced_text.doc_splits, expected_doc_splits)
         assert sourced_text.doc_splits.dtype == np.uint32, sourced_text.doc_splits.dtype
+
+    def test_filter_texts(self):
+        name0 = "test_filter_texts_0"
+        s0 = "Higher, faster, stronger, together"
+        text_source0 = TextSource.from_str(name=name0, s=s0, use_utf8=False)
+
+        sourced_text0 = texts_to_sourced_texts([text_source0])
+        sourced_text = append_texts([sourced_text0[0]])
+
+        # test keep
+        keep = np.array([True if x != "," else False for x in s0], dtype=bool)
+        new_sourced_text = filter_texts(sourced_text, keep=keep)
+
+        new_s0 = "Higher faster stronger together"
+        new_text_source0 = TextSource.from_str(name=name0, s=new_s0, use_utf8=False)
+        np.testing.assert_equal(
+            new_sourced_text.binary_text, new_text_source0.binary_text
+        )
+
+        new_pos_list = list(range(len(s0)))
+        new_pos_list.remove(6)
+        new_pos_list.remove(14)
+        new_pos_list.remove(24)
+        new_pos = np.array(new_pos_list, dtype=np.uint32)
+        np.testing.assert_equal(new_sourced_text.pos, new_pos)
+
+        # test fn
+        fn = lambda x: x != ord(",")
+        new_sourced_text = filter_texts(sourced_text, fn=fn)
+        np.testing.assert_equal(
+            new_sourced_text.binary_text, new_text_source0.binary_text
+        )
+        np.testing.assert_equal(new_sourced_text.pos, new_pos)
 
 
 if __name__ == "__main__":

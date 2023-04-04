@@ -32,22 +32,22 @@ void RowIdsToRowSplits(int32_t num_elems, const uint32_t *row_ids,
   }
 }
 
-void GetNew2Old(const bool *keep, size_t num_old_elems,
-                std::vector<uint64_t> *new2old) {
-  auto old2new = std::vector<uint64_t>(num_old_elems);
+void GetNew2Old(const bool *keep, uint32_t num_old_elems,
+                std::vector<uint32_t> *new2old) {
+  auto old2new = std::vector<uint32_t>(num_old_elems);
 
   // Exclusive sum
-  uint64_t sum = 0;
+  uint32_t sum = 0;
   for (size_t i = 0; i != old2new.size(); ++i) {
     old2new[i] = sum;
     sum += (int)keep[i];
   }
-  uint64_t num_new_elems = sum;
+  uint32_t num_new_elems = sum;
 
   assert(num_new_elems >= 0);
   assert(num_new_elems <= num_old_elems);
 
-  *new2old = std::vector<uint64_t>(num_new_elems + 1);
+  *new2old = std::vector<uint32_t>(num_new_elems + 1);
   for (size_t i = 0; i != old2new.size(); ++i) {
     if (i == old2new.size() - 1 || old2new[i + 1] > old2new[i])
       (*new2old)[old2new[i]] = i;
