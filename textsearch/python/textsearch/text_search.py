@@ -105,11 +105,23 @@ def find_candidate_matches(
                 current_close_matches[j - 1] + 1,
                 j - i,
             )
-            current_candidates.append(candidate)
 
-            current_candidates = sorted(
-                current_candidates, key=lambda s: s[2], reverse=True
-            )
-            current_candidates = current_candidates[0:num_candidates]
+            min_score = candidate[2]
+            min_index = None
+            overlap = False
+            for i, c in enumerate(current_candidates):
+                if c[2] < min_score:
+                    min_score = c[2]
+                    min_index = i
+                if candidate[0] < c[1] and candidate[2] > c[2]:
+                    current_candidates[i] = candidate
+                    overlap = True
+                    break
+            if not overlap:
+                if len(current_candidates) < num_candidates:
+                    current_candidates.append(candidate)
+                else:
+                    if min_index is not None:
+                        current_candidates[min_index] = candidate
         candidate_matches.append([(c[0], c[1]) for c in current_candidates])
     return candidate_matches
