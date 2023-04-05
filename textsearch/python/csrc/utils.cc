@@ -18,6 +18,23 @@ Args:
     On return it will contain the computed row splits.
 )doc";
 
+static constexpr const char *kGetNew2OldDoc = R"doc(
+Returns an array mapping the new indexes to the old indexes.
+Its dimension is the number of new indexes (i.e. the number of True in keep).
+
+Args:
+  keep:
+    A 1-D contiguous array of dtype np.bool indicating whether to keep current
+    element (True to keep, False to drop).
+
+>>> from textsearch import get_new2old
+>>> import numpy as np
+>>> keep = np.array([0, 0, 1, 0, 1, 0, 1, 1], dtype=bool)
+>>> get_new2old(keep)
+array([2, 4, 6, 7], dtype=uint32)
+
+)doc";
+
 static void PybindRowIdsToRowSplits(py::module &m) {
   m.def(
       "row_ids_to_row_splits",
@@ -38,6 +55,23 @@ static void PybindRowIdsToRowSplits(py::module &m) {
       py::arg("row_ids"), py::arg("row_splits"), kRowIdsToRowSplitsDoc);
 }
 
-void PybindUtils(py::module &m) { PybindRowIdsToRowSplits(m); }
+static void PybindGetNew2Old(py::module &m) {
+  m.def(
+      "get_new2old",
+      [](py::array_t<bool> keep) -> py::array_t<uint32_t> {
+        py::buffer_info keep_buf = keep.request();
+        size_t num_old_elems = keep_buf.size;
+        const bool *p_keep = static_cast<const bool *>(keep_buf.ptr);
+        std::vector<uint32_t> new2old;
+        GetNew2Old(p_keep, num_old_elems, &new2old);
+        return py::array(new2old.size(), new2old.data());
+      },
+      py::arg("keep"), kGetNew2OldDoc);
+}
+
+void PybindUtils(py::module &m) {
+  PybindGetNew2Old(m);
+  PybindRowIdsToRowSplits(m);
+}
 
 } // namespace fasttextsearch
