@@ -2,9 +2,10 @@ import json
 from dataclasses import dataclass
 from itertools import chain
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Callable, List, Optional, Union
 
 from .utils import row_ids_to_row_splits
+from textsearch import get_new2old
 
 import numpy as np
 
@@ -43,7 +44,7 @@ class TextSource:
             return "".join([chr(i) for i in self.binary_text])
 
     @staticmethod
-    def from_str(name: str, s: str, use_utf8: bool) -> "TextSource":
+    def from_str(name: str, s: str, use_utf8: bool, uppercase: bool = False) -> "TextSource":
         """Construct an instance of TextSource from a string.
 
         Args:
@@ -55,6 +56,9 @@ class TextSource:
             True to encode the text with utf-8.
             False to save the Unicode codepoint of the text.
         """
+        if uppercase:
+            s = s.upper()
+
         if use_utf8:
             binary_text = s.encode("utf-8")
             return TextSource(
@@ -144,7 +148,7 @@ class Transcript:
             return "".join([chr(i) for i in self.binary_text])
 
     @staticmethod
-    def from_dict(name: str, d: dict, use_utf8: bool) -> "Transcript":
+    def from_dict(name: str, d: dict, use_utf8: bool, is_bpe: bool = False, uppercase: bool = False) -> "Transcript":
         """
         Args:
           name:
@@ -173,6 +177,9 @@ class Transcript:
             byte_list = []
             time_list = []
             for text, begin_time in zip(d["text"], d["begin_times"]):
+                text = text.upper() if uppercase else text
+                text = text.replace("▁", " ") if is_bpe else text
+
                 b = text.encode("utf-8")
 
                 if time_list:
@@ -194,6 +201,9 @@ class Transcript:
             codepoint_list = []
             time_list = []
             for text, begin_time in zip(d["text"], d["begin_times"]):
+                text = text.upper() if uppercase else text
+                text = text.replace("▁", " ") if is_bpe else text
+
                 codepoint_list.append(ord(i) for i in text)
 
                 if time_list:
@@ -332,19 +342,40 @@ def append_texts(texts: List[SourcedText]) -> SourcedText:
     )
 
 
-'''
-TODO
-def remove(t: SourcedText, keep: np.ndarray) -> SourcedText:
+def filter_texts(
+    t: SourcedText,
+    fn: Optional[Callable[[Union[np.int32, np.uint8]], bool]] = None,
+    keep: Optional[np.ndarray] = None,
+) -> SourcedText:
     """
-    Removes some positions from a SourcedText (out-of-place).
+    Filter some elements from a SourcedText (out-of-place).
     Args:
-        t: the text to remove some positions of
-        keep: an np.ndarray with dtype == np.bool, that is True
+        t:
+          the text to remove some positions of
+        fn:
+          a function takes each element as input and output whether to keep this element.
+        keep:
+          an np.ndarray with dtype == np.bool, that is True
           for positions that should be kept; must have the same shape
           as t.text.
     Returns:
         A SourcedText with some positions removed.
     """
-    pass
-
-'''
+    # TODO: Checking if this also works correctly for utf8.
+    assert t.binary_text.dtype == np.int32
+    if keep is None:
+        assert fn is not None
+        vfn = np.vectorize(fn)
+        keep = vfn(t.binary_text)
+    new2old = get_new2old(keep)
+    binary_text = t.binary_text[new2old]
+    pos = t.pos[new2old]
+    doc = t.doc
+    if not isinstance(t.doc, int):
+        doc = t.doc[new2old]
+    return SourcedText(
+        binary_text=binary_text,
+        pos=pos,
+        doc=doc,
+        sources=t.sources,
+    )
