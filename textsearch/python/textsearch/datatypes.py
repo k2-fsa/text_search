@@ -247,7 +247,7 @@ class SourcedText:
 
     # The document index for each element of the text.
     # The np.ndarray would be of type uint32.
-    doc: Union[int, np.ndarray]
+    doc: np.ndarray
 
     # For reference, the list of available text sources that this text might come from.
     sources: TextSources
@@ -283,12 +283,13 @@ def texts_to_sourced_texts(sources: TextSources) -> List[SourcedText]:
         # If s.binary_text.dtype is np.uint8, pos[i] is the position of the
         # i-th byte of s.binary_text
         pos = np.arange(s.binary_text.size, dtype=np.uint32)
+        doc = np.zeros(s.binary_text.size, dtype=np.uint32)
 
         ans.append(
             SourcedText(
                 binary_text=s.binary_text,
                 pos=pos,
-                doc=0,  # indexes into the following `sources` attribte
+                doc=doc,  # indexes into the following `sources` attribte
                 sources=[s],
             )
         )

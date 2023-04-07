@@ -1,10 +1,17 @@
 import argparse
 import logging
-from typing import List, Set
-from lhotse import Cut, CutSet, load_manifest_lazy
+import numpy as np
+import os
+from pathlib import Path
+from typing import List, Set, Tuple
+from multiprocessing import Pool
+
+from lhotse import MonoCut, CutSet, load_manifest_lazy
 from lhotse.serialization import SequentialJsonlWriter
 from textsearch import (
+    AttributeDict,
     TextSource,
+    Transcript,
     SourcedText,
     append_texts,
     create_suffix_array_from_sourced_text,
@@ -14,6 +21,8 @@ from textsearch import (
     levenshtein_distance,
     texts_to_sourced_texts,
 )
+
+PUNCTUATION = set([ord(i) for i in '():,-.!<>-?;/"'])
 
 
 def get_args():
@@ -32,6 +41,12 @@ def get_args():
         """,
     )
     parser.add_argument(
+        "--book-dir",
+        type=str,
+        help="""The directory of books.
+        """,
+    )
+    parser.add_argument(
         "--batch-size",
         type=int,
         default=10,
@@ -42,15 +57,74 @@ def get_args():
     return parser.parse_args()
 
 
+def get_params() -> AttributeDict:
+    """Return a dict containing matching parameters.
+
+    All related parameters that are not passed from the commandline
+    are saved in the variable `params`.
+
+    Commandline options are merged into `params` after they are parsed, so
+    you can also access them via `params`.
+
+    """
+    params = AttributeDict(
+        {
+            "num_close_matches": 1,
+            "num_candidates": 1,
+            "match_length_ratio": 1.0,
+            "use_utf8": False,
+            "is_bpe": True,
+            "use_uppercase": True,
+        }
+    )
+
+    return params
+
+
 def _align_worker(
+    sourced_text: SourcedText,
     transcript: Transcript,
     indexes: Tuple[int, int],
     candidate_matches: List[Tuple[int, int]],
 ) -> Tuple[Tuple[int, int], Tuple[int, int, str, str]]:
-    pass
+    query = transcript.binary_text
+    query_length = transcript.binary_text.size
+    min_cost: float = query_length
+    best_alignment: Tuple[float, List[Tuple[int, int, str]]] = None
+    best_match: Tuple[int, int] = None
+    for j, match in enumerate(candidate_matches):
+        assert sourced_text.doc[match[0]] == sourced_text.doc[match[1]], (
+            sourced_text.doc[match[0]],
+            sourced_text.doc[match[1]],
+        )
+
+        start = sourced_text.doc_splits[sourced_text.doc[match[0]]]
+        end = sourced_text.doc_splits[sourced_text.doc[match[0]] + 1]
+        start = max(start, match[0] - query_length // 4)
+        end = min(end, match[1] + query_length // 4)
+        target = sourced_text.binary_text[start:end]
+
+        alignment = levenshtein_distance(query=query, target=target)
+        if alignment[0] < min_cost:
+            min_cost = alignment[0]
+            best_alignment = alignment
+            best_match = (start, end)
+
+    start = best_match[0] + best_alignment[1][0][0]
+    end = best_match[0] + best_alignment[1][0][1]
+
+    ref = "".join([chr(i) for i in sourced_text.binary_text[start : end + 1]])
+
+    base = sourced_text.doc_splits[sourced_text.doc[start]]
+    # logging.info(f"start : {sourced_text.pos[start]}, end : {sourced_text.pos[end]}, base : {base}")
+    start_pos = sourced_text.pos[start]  # - base
+    end_pos = sourced_text.pos[end]  # - base
+    return (indexes, (int(start_pos), int(end_pos), ref, best_alignment[1][0][2]))
 
 
-def process_one_batch(batch_cuts: List[Cut], cuts_writer: SequentialJsonlWriter):
+def process_one_batch(
+    batch_cuts: List[MonoCut], params: AttributeDict, cuts_writer: SequentialJsonlWriter
+):
     transcripts: List[Transcript] = []
     # contains cut index and supervision index
     transcripts_cut_index: List[Tuple[int, int]] = []
@@ -60,24 +134,29 @@ def process_one_batch(batch_cuts: List[Cut], cuts_writer: SequentialJsonlWriter)
 
     # transcripts
     for i, cut in enumerate(batch_cuts):
+        if cut.text_path == "":
+            continue
         for j, sup in enumerate(cut.supervisions):
             aligns = {"text": [], "begin_times": []}
-            for ali in sup["alignment"]["symbol"]:
-                aligns["text"].append(ali[0])
-                aligns["begin_times"].append(ali[1])
+            for ali in sup.alignment["symbol"]:
+                aligns["text"].append(ali.symbol)
+                aligns["begin_times"].append(ali.start)
             transcript = Transcript.from_dict(
-                name=sup["id"], d=aligns, use_utf8=False, is_bpe=True
+                name=sup.id, d=aligns, use_utf8=params.use_utf8, is_bpe=params.is_bpe
             )
             query_len += transcript.binary_text.size
             transcripts.append(transcript)
             transcripts_cut_index.append((i, j))
-        book_paths.add(cut["text_path"])
+        book_paths.add(cut.text_path)
 
     # references
     for i, book_path in enumerate(book_paths):
-        book_text = open(book_path, "r").read()
+        book_text = open(params.book_dir / book_path, "r").read()
         book = TextSource.from_str(
-            name=book_path, s=book_text, use_utf8=False, uppercase=True
+            name=book_path,
+            s=book_text,
+            use_utf8=params.use_utf8,
+            uppercase=params.use_uppercase,
         )
         books.append(book)
 
@@ -86,17 +165,25 @@ def process_one_batch(batch_cuts: List[Cut], cuts_writer: SequentialJsonlWriter)
 
     sourced_book_list = texts_to_sourced_texts(books)
     sourced_books = append_texts(sourced_book_list)
-    sourced_books = filter_texts(sourced_books, fn=is_not_punc)
+
+    def _is_not_punc(c: np.int32) -> bool:
+        return c not in PUNCTUATION
+
+    sourced_books = filter_texts(sourced_books, fn=_is_not_punc)
 
     sourced_text = append_texts([sourced_transcripts, sourced_books])
 
     suffix_array = create_suffix_array_from_sourced_text(sourced_text)
-    close_matches = find_close_matches(suffix_array, query_len, num_close_matches=1)
+
+    close_matches = find_close_matches(
+        suffix_array, query_len, num_close_matches=params.num_close_matches
+    )
+
     candidate_matches = find_candidate_matches(
         close_matches=close_matches,
         text=sourced_text,
-        num_candidates=1,
-        length_ratio=1.0,
+        num_candidates=params.num_candidates,
+        length_ratio=params.match_length_ratio,
     )
 
     assert len(transcripts) == len(candidate_matches), (
@@ -104,69 +191,43 @@ def process_one_batch(batch_cuts: List[Cut], cuts_writer: SequentialJsonlWriter)
         len(candidate_matches),
     )
 
+    arguments = []
     for i, transcript in enumerate(transcripts):
-        query = transcript.binary_text
-        query_length = transcript.binary_text.size
-        min_cost: float = query_length
-        best_alignment: Tuple[float, List[int, int, str]] = None
-        best_match: Tuple[int, int] = None
-        for j, match in enumerate(candidate_matches[i]):
-            assert sourced_text.doc[match[0]] == sourced_text.doc[match[1]], (
-                sourced_text.doc[match[0]],
-                sourced_text.doc[match[1]],
-            )
+        arguments.append(
+            (sourced_text, transcript, transcripts_cut_index[i], candidate_matches[i])
+        )
 
-            start = sourced_text.doc_splits[sourced_text.doc[match[0]]]
-            end = sourced_text.doc_splits[sourced_text.doc[match[0]] + 1]
-            start = max(start, match[0] - query_length // 4)
-            end = min(end, match[1] + query_length // 4)
-            target = sourced_text.binary_text[start:end]
-
-            alignment = levenshtein_distance(query=query, target=target)
-            if alignment[0] < min_cost:
-                min_cost = alignment[0]
-                best_alignment = alignment
-                best_match = (start, end)
-
-        start = best_match[0] + best_alignment[1][0]
-        end = best_match[0] + best_alignment[1][1]
-
-        ref = "".join([chr(i) for i in self.binary_text[start : end + 1]])
-
-        base = sourced_text.doc_splits[sourced_text.doc[start]]
-        start_pos = sourced_text.pos[start] - base
-        end_pos = sourced_text.pos[end] - base
-
-        batch_cuts[transcripts_cut_index[i][0]]["supervisions"][
-            transcripts_cut_index[i][1]
-        ]["text"] = ref
-        batch_cuts[transcripts_cut_index[i][0]]["supervisions"][
-            transcripts_cut_index[i][1]
-        ]["align"] = best_alignment[1][2]
-        batch_cuts[transcripts_cut_index[i][0]]["supervisions"][
-            transcripts_cut_index[i][1]
-        ]["begin"] = start_pos
-        batch_cuts[transcripts_cut_index[i][0]]["supervisions"][
-            transcripts_cut_index[i][1]
-        ]["end"] = end_pos
-
-    # cuts_writer.write(new_cut, flush=True)
+    num_processes = min(len(arguments), os.cpu_count())
+    with Pool(num_processes) as pool:
+        async_results = pool.starmap_async(_align_worker, arguments)
+        results = async_results.get()
+        for res in results:
+            batch_cuts[res[0][0]].supervisions[res[0][1]].text = res[1][2]
+            batch_cuts[res[0][0]].supervisions[res[0][1]].align = res[1][3]
+            batch_cuts[res[0][0]].supervisions[res[0][1]].begin = res[1][0]
+            batch_cuts[res[0][0]].supervisions[res[0][1]].end = res[1][1]
+    for cut in batch_cuts:
+        cuts_writer.write(cut, flush=True)
 
 
 def main():
     args = get_args()
-    raw_cuts = load_manifest_lazy(args.manifest_in)
-    cuts_writer = CutSet.open_writer(args.manifest_out, overwrite=False)
+    args.book_dir = Path(args.book_dir)
+    params = get_params()
+    params.update(vars(args))
+
+    raw_cuts = load_manifest_lazy(params.manifest_in)
+    cuts_writer = CutSet.open_writer(params.manifest_out, overwrite=False)
     batch_cuts = []
     for i, cut in enumerate(raw_cuts):
-        if len(batch_cuts) < args.batch_size:
+        if len(batch_cuts) < params.batch_size:
             batch_cuts.append(cut)
         else:
-            process_one_batch(batch_cuts, cuts_writer)
+            process_one_batch(batch_cuts, params, cuts_writer)
             batch_cuts = []
             logging.info(f"Number of cuts have been processed is {i}")
     if len(batch_cuts):
-        process_one_batch(batch_cuts, cuts_writer)
+        process_one_batch(batch_cuts, params, cuts_writer)
     cuts_writer.close()
 
 
