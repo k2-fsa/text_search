@@ -4,7 +4,7 @@ import numpy as np
 import os
 from pathlib import Path
 from typing import List, Set, Tuple
-from multiprocessing import Pool
+from multiprocessing.pool import ThreadPool as Pool
 
 from lhotse import MonoCut, CutSet, load_manifest_lazy
 from lhotse.serialization import SequentialJsonlWriter
@@ -125,28 +125,41 @@ def _align_worker(
 def process_one_batch(
     batch_cuts: List[MonoCut], params: AttributeDict, cuts_writer: SequentialJsonlWriter
 ):
+    """
+    Process the text matching for a batch of cuts, each cuts could have multiple supervisions,
+    and write the new cuts (with some extra attributes, like text, begin pos, end pos).
+    """
+    # List of transcripts (total number of valid supervisions in the cuts).
     transcripts: List[Transcript] = []
-    # contains cut index and supervision index
+    # Contains cut index and local supervision index
     transcripts_cut_index: List[Tuple[int, int]] = []
+    # Constructed from the valid books in the cuts
     books: List[TextSource] = []
     book_paths: Set[str] = set()
     query_len = 0
 
     # transcripts
     for i, cut in enumerate(batch_cuts):
+        # No text book available, skip this cut.
         if cut.text_path == "":
             continue
         for j, sup in enumerate(cut.supervisions):
+            # Transcript requires the input to be the dick like this.
             aligns = {"text": [], "begin_times": []}
             for ali in sup.alignment["symbol"]:
                 aligns["text"].append(ali.symbol)
                 aligns["begin_times"].append(ali.start)
-            transcript = Transcript.from_dict(
-                name=sup.id, d=aligns, use_utf8=params.use_utf8, is_bpe=params.is_bpe
-            )
-            query_len += transcript.binary_text.size
-            transcripts.append(transcript)
-            transcripts_cut_index.append((i, j))
+            # alignments in a supervision might be empty
+            if aligns["text"]:
+                transcript = Transcript.from_dict(
+                    name=sup.id,
+                    d=aligns,
+                    use_utf8=params.use_utf8,
+                    is_bpe=params.is_bpe,
+                )
+                query_len += transcript.binary_text.size
+                transcripts.append(transcript)
+                transcripts_cut_index.append((i, j))
         book_paths.add(cut.text_path)
 
     # references
@@ -159,6 +172,8 @@ def process_one_batch(
             uppercase=params.use_uppercase,
         )
         books.append(book)
+
+    logging.info("Loading data done.")
 
     sourced_transcript_lists = texts_to_sourced_texts(transcripts)
     sourced_transcripts = append_texts(sourced_transcript_lists)
@@ -173,18 +188,24 @@ def process_one_batch(
 
     sourced_text = append_texts([sourced_transcripts, sourced_books])
 
+    logging.info(f"Creating suffix array.")
     suffix_array = create_suffix_array_from_sourced_text(sourced_text)
+    logging.info(f"Create suffix array done.")
 
+    logging.info(f"Finding close matches.")
     close_matches = find_close_matches(
         suffix_array, query_len, num_close_matches=params.num_close_matches
     )
+    logging.info(f"Find close matches done.")
 
+    logging.info(f"Finding candidates.")
     candidate_matches = find_candidate_matches(
         close_matches=close_matches,
         text=sourced_text,
         num_candidates=params.num_candidates,
         length_ratio=params.match_length_ratio,
     )
+    logging.info(f"Find candidates done.")
 
     assert len(transcripts) == len(candidate_matches), (
         len(transcripts),
@@ -199,15 +220,23 @@ def process_one_batch(
 
     num_processes = min(len(arguments), os.cpu_count())
     with Pool(num_processes) as pool:
+        logging.info("Matching with levenshtein.")
         async_results = pool.starmap_async(_align_worker, arguments)
         results = async_results.get()
+        logging.info("Levenshtein done.")
+
+        valid_cuts = set()
         for res in results:
             batch_cuts[res[0][0]].supervisions[res[0][1]].text = res[1][2]
             batch_cuts[res[0][0]].supervisions[res[0][1]].align = res[1][3]
             batch_cuts[res[0][0]].supervisions[res[0][1]].begin = res[1][0]
             batch_cuts[res[0][0]].supervisions[res[0][1]].end = res[1][1]
-    for cut in batch_cuts:
-        cuts_writer.write(cut, flush=True)
+            valid_cuts.add(res[0][0])
+
+        logging.info(f"Writing results.")
+        for index in valid_cuts:
+            cuts_writer.write(batch_cuts[index], flush=True)
+        logging.info(f"Write results done.")
 
 
 def main():
@@ -217,8 +246,9 @@ def main():
     params.update(vars(args))
 
     raw_cuts = load_manifest_lazy(params.manifest_in)
-    cuts_writer = CutSet.open_writer(params.manifest_out, overwrite=False)
+    cuts_writer = CutSet.open_writer(params.manifest_out, overwrite=True)
     batch_cuts = []
+    logging.info(f"Start processing...")
     for i, cut in enumerate(raw_cuts):
         if len(batch_cuts) < params.batch_size:
             batch_cuts.append(cut)

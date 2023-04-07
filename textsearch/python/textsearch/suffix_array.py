@@ -91,7 +91,9 @@ def find_close_matches(
     seq_len = suffix_array.size
     assert query_len < seq_len, (query_len, seq_len)
 
-    output = np.empty((query_len, num_close_matches * 2), dtype=suffix_array.dtype)
+    output = np.ones((query_len, num_close_matches * 2), dtype=suffix_array.dtype)
+
+    output *= seq_len - 2
 
     prev_refs = [seq_len - 2] * num_close_matches
     unfinished_q = {}

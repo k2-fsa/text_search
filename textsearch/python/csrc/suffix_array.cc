@@ -41,8 +41,10 @@ PybindSuffixArrayHelper(py::array_t<int64_t, py::array::c_style> &input) {
   int64_t *sa_data = static_cast<int64_t *>(sa_buf.ptr);
 
   int64_t max_symbol = input_data[seq_len - 1];
-
-  CreateSuffixArray<int64_t>(input_data, seq_len, max_symbol, sa_data);
+  {
+    py::gil_scoped_release release;
+    CreateSuffixArray<int64_t>(input_data, seq_len, max_symbol, sa_data);
+  }
   return suffix_array;
 }
 

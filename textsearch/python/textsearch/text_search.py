@@ -63,13 +63,14 @@ def find_candidate_matches(
     tot_query_symbols, num_close_matches = close_matches.shape
     assert text.binary_text.size > tot_query_symbols, (text.binary_text.size, tot_query_symbols)
 
-    # can we assert the query docs are sorted by doc ids ?
+    # TODO:can we assert the query docs are sorted by doc ids ?
     num_query_docs = np.unique(text.doc[0:tot_query_symbols]).size
 
     # assert num_query_docs == text.doc[tot_query_symbols], (
         # num_query_docs,
         # text.doc[tot_query_symbols],
     # )
+
     num_query_docs = text.doc[tot_query_symbols]
 
     row_splits = text.doc_splits
