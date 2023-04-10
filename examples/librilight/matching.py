@@ -82,13 +82,15 @@ def get_params() -> AttributeDict:
 
 
 def _align_worker(
+    index: int,
     sourced_text: SourcedText,
-    transcript: Transcript,
     indexes: Tuple[int, int],
     candidate_matches: List[Tuple[int, int]],
 ) -> Tuple[Tuple[int, int], Tuple[int, int, str, str]]:
-    query = transcript.binary_text
-    query_length = transcript.binary_text.size
+    query_start = sourced_text.doc_splits[index]
+    query_end = sourced_text.doc_splits[index + 1]
+    query = sourced_text.binary_text[query_start:query_end]
+    query_length = query_end - query_start
     min_cost: float = query_length
     best_alignment: Tuple[float, List[Tuple[int, int, str]]] = None
     best_match: Tuple[int, int] = None
@@ -100,8 +102,11 @@ def _align_worker(
 
         start = sourced_text.doc_splits[sourced_text.doc[match[0]]]
         end = sourced_text.doc_splits[sourced_text.doc[match[0]] + 1]
+
+        # see more text on both side
         start = max(start, match[0] - query_length // 4)
         end = min(end, match[1] + query_length // 4)
+
         target = sourced_text.binary_text[start:end]
 
         alignment = levenshtein_distance(query=query, target=target)
@@ -110,16 +115,66 @@ def _align_worker(
             best_alignment = alignment
             best_match = (start, end)
 
+    # best_match is global index into sourced_text
+    # best_alignment is local index into target
     start = best_match[0] + best_alignment[1][0][0]
     end = best_match[0] + best_alignment[1][0][1]
 
-    ref = "".join([chr(i) for i in sourced_text.binary_text[start : end + 1]])
+    # start_pos and end_pos is local index into the source text (un-normalized)
+    start_pos = sourced_text.pos[start]
+    end_pos = sourced_text.pos[end]
 
-    base = sourced_text.doc_splits[sourced_text.doc[start]]
-    # logging.info(f"start : {sourced_text.pos[start]}, end : {sourced_text.pos[end]}, base : {base}")
-    start_pos = sourced_text.pos[start]  # - base
-    end_pos = sourced_text.pos[end]  # - base
-    return (indexes, (int(start_pos), int(end_pos), ref, best_alignment[1][0][2]))
+    text = "".join([chr(i) for i in query])
+    assert sourced_text.doc[start] == sourced_text.doc[end]
+    source = sourced_text.sources[sourced_text.doc[start]]
+    ref = "".join([chr(i) for i in source.binary_text[start_pos : end_pos + 1]])
+
+    # (ref, hyp, ref_char_pos, hyp_char_pos, hyp_time)
+    aligns: List[Tuple[str, str, int, int, float]] = []
+    assert sourced_text.doc[query_start] == sourced_text.doc[query_end] - 1
+    query_doc_index = sourced_text.doc[query_start]
+    query_source = sourced_text.sources[query_doc_index]
+    q_index = 0
+    t_index = start
+    for i, t in enumerate(best_alignment[1][0][2]):
+        hyp_time = float(query_source.times[q_index])
+        if t == "I":
+            aligns.append(
+                (
+                    "",
+                    chr(query_source.binary_text[q_index]),
+                    int(sourced_text.pos[t_index]),
+                    q_index + 1,
+                    hyp_time,
+                )
+            )
+            q_index += 1
+        elif t == "D":
+            aligns.append(
+                (
+                    chr(sourced_text.binary_text[t_index]),
+                    "",
+                    int(sourced_text.pos[t_index + 1]),
+                    q_index,
+                    hyp_time,
+                )
+            )
+            t_index += 1
+        else:
+            assert t == "E" or t == "R"
+            aligns.append(
+                (
+                    chr(sourced_text.binary_text[t_index]),
+                    chr(query_source.binary_text[q_index]),
+                    int(sourced_text.pos[t_index + 1]),
+                    q_index + 1,
+                    hyp_time,
+                )
+            )
+            q_index += 1
+            t_index += 1
+
+    return {"cut_index": indexes, "text": text, "ref": ref, "aligns": aligns}
 
 
 def process_one_batch(
@@ -166,19 +221,18 @@ def process_one_batch(
     for i, book_path in enumerate(book_paths):
         book_text = open(params.book_dir / book_path, "r").read()
         book = TextSource.from_str(
-            name=book_path,
-            s=book_text,
-            use_utf8=params.use_utf8,
-            uppercase=params.use_uppercase,
+            name=book_path, s=book_text, use_utf8=params.use_utf8,
         )
         books.append(book)
 
     logging.info("Loading data done.")
 
-    sourced_transcript_lists = texts_to_sourced_texts(transcripts)
+    sourced_transcript_lists = texts_to_sourced_texts(
+        transcripts, uppercase=params.use_uppercase
+    )
     sourced_transcripts = append_texts(sourced_transcript_lists)
 
-    sourced_book_list = texts_to_sourced_texts(books)
+    sourced_book_list = texts_to_sourced_texts(books, uppercase=params.use_uppercase)
     sourced_books = append_texts(sourced_book_list)
 
     def _is_not_punc(c: np.int32) -> bool:
@@ -213,9 +267,9 @@ def process_one_batch(
     )
 
     arguments = []
-    for i, transcript in enumerate(transcripts):
+    for i in range(len(transcripts)):
         arguments.append(
-            (sourced_text, transcript, transcripts_cut_index[i], candidate_matches[i])
+            (i, sourced_text, transcripts_cut_index[i], candidate_matches[i])
         )
 
     num_processes = min(len(arguments), os.cpu_count())
@@ -227,11 +281,11 @@ def process_one_batch(
 
         valid_cuts = set()
         for res in results:
-            batch_cuts[res[0][0]].supervisions[res[0][1]].text = res[1][2]
-            batch_cuts[res[0][0]].supervisions[res[0][1]].align = res[1][3]
-            batch_cuts[res[0][0]].supervisions[res[0][1]].begin = res[1][0]
-            batch_cuts[res[0][0]].supervisions[res[0][1]].end = res[1][1]
-            valid_cuts.add(res[0][0])
+            cut_index = res["cut_index"]
+            batch_cuts[cut_index[0]].supervisions[cut_index[1]].text = res["text"]
+            batch_cuts[cut_index[0]].supervisions[cut_index[1]].aligns = res["aligns"]
+            batch_cuts[cut_index[0]].supervisions[cut_index[1]].ref = res["ref"]
+            valid_cuts.add(cut_index[0])
 
         logging.info(f"Writing results.")
         for index in valid_cuts:

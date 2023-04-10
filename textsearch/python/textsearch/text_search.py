@@ -66,10 +66,10 @@ def find_candidate_matches(
     # TODO:can we assert the query docs are sorted by doc ids ?
     num_query_docs = np.unique(text.doc[0:tot_query_symbols]).size
 
-    # assert num_query_docs == text.doc[tot_query_symbols], (
-        # num_query_docs,
-        # text.doc[tot_query_symbols],
-    # )
+    assert num_query_docs == text.doc[tot_query_symbols], (
+        num_query_docs,
+        text.doc[tot_query_symbols],
+    )
 
     num_query_docs = text.doc[tot_query_symbols]
 
