@@ -51,7 +51,7 @@ def create_suffix_array(input: np.ndarray) -> np.ndarray:
 
 
 def find_close_matches(
-    suffix_array: np.ndarray, query_len: int, num_close_matches: int
+    suffix_array: np.ndarray, query_len: int, num_close_matches: int = 1
 ) -> np.ndarray:
     """
     Assuming the suffix array was created from a text where the first `query_len`
