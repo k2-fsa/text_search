@@ -18,7 +18,43 @@ import _fasttextsearch
 import numpy as np
 
 
-def create_suffix_array(array: np.ndarray) -> np.ndarray:
+def _renumbering(array: np.ndarray) -> np.ndarray:
+    """Renumber element in the input array such that the returned array
+    contains entries ranging from 0 to M - 1, where M equals
+    to number of unique entries in the input array.
+
+    The order of entries in the output array is the same as the order
+    of entries in the input array. That is, if array[i] < array[j], then
+    ans[i] < ans[j].
+
+    Args:
+      array:
+        A 1-D array.
+    Returns:
+      Return a renumbered 1-D array.
+    """
+    uniqued, inverse = np.unique(array, return_inverse=True)
+    # Note: uniqued[inverse] == array
+
+    if uniqued.size < np.iinfo(np.uint8).max:
+        ans_dtype = np.uint8
+    elif uniqued.size < np.iinfo(np.uint32).max:
+        ans_dtype = np.uint32
+    else:
+        # unlikely
+        ans_dtype = np.int64
+
+    indexes_sorted2unsorted = np.argsort(uniqued)
+    indexes_unsorted2sorted = np.empty((uniqued.size), dtype=ans_dtype)
+    indexes_unsorted2sorted[indexes_sorted2unsorted] = np.arange(uniqued.size)
+
+    return indexes_unsorted2sorted[inverse]
+
+
+def create_suffix_array(
+    array: np.ndarray,
+    enable_renumbering: bool = True,
+) -> np.ndarray:
     """Create a suffix array from a 1-D input array.
 
     hint:
@@ -32,6 +68,8 @@ def create_suffix_array(array: np.ndarray) -> np.ndarray:
         A 1-D integer (or unsigned integer) array of shape (seq_len,).
         Note: Inside this function, we will append explicitly an EOS
         symbol that is larger than ``array.max()``.
+      enable_renumbering:
+        True to enable renumbering before computing the suffix array.
     Returns:
       Returns a suffix array of type np.int64, of shape (seq_len,).
       This will consist of some permutation of the elements
@@ -39,7 +77,9 @@ def create_suffix_array(array: np.ndarray) -> np.ndarray:
     """
     assert array.ndim == 1, array.ndim
 
-    # TODO(fangjun): Support renumbering
+    if enable_renumbering:
+        array = _renumbering(array)
+
     max_symbol = array.max()
     assert max_symbol < np.iinfo(array.dtype).max - 1, max_symbol
     eos = max_symbol + 1
