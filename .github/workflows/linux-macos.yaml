@@ -8,8 +8,8 @@ on:
       - '.github/workflows/linux-macos.yaml'
       - 'CMakeLists.txt'
       - 'cmake/**'
-      - 'textsearch/csrc/*'
-      - 'textsearch/python/*'
+      - 'textsearch/csrc/**'
+      - 'textsearch/python/**'
   pull_request:
     branches:
       - master
@@ -17,8 +17,8 @@ on:
       - '.github/workflows/linux-macos.yaml'
       - 'CMakeLists.txt'
       - 'cmake/**'
-      - 'textsearch/csrc/*'
-      - 'textsearch/python/*'
+      - 'textsearch/csrc/**'
+      - 'textsearch/python/**'
 
 concurrency:
   group: linux-macos-${{ github.ref }}
