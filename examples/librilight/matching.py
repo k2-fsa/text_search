@@ -2,8 +2,10 @@ import argparse
 import logging
 import numpy as np
 import os
+from bisect import bisect_left
+from heapq import heappush, heappop
 from pathlib import Path
-from typing import List, Set, Tuple
+from typing import Dict, List, Set, Tuple, Union
 from multiprocessing.pool import ThreadPool as Pool
 
 from lhotse import MonoCut, CutSet, load_manifest_lazy
@@ -23,6 +25,7 @@ from textsearch import (
 )
 
 PUNCTUATION = set([ord(i) for i in '():,-.!<>-?;/"'])
+PUNCTUATION_END = set([ord(i) for i in ".!?"])
 
 
 def get_args():
@@ -81,18 +84,516 @@ def get_params() -> AttributeDict:
     return params
 
 
-def _align_worker(
-    index: int,
+def is_overlap(ranges: List[Tuple[int, int]], query: Tuple[int, int]) -> bool:
+    """
+    Return if the given range overlaps with the existing ranges.
+
+    Caution:
+      `ranges` will be modified in this function (when returning False)
+
+    Args:
+      ranges:
+        The existing ranges.
+      query:
+        The given range.
+
+    Return:
+      Return True if having overlap otherwise False.
+    """
+    is_overlap = False
+    index = bisect_left(ranges, query)
+    if index == 0:
+        if ranges:
+            is_overlap = query[1] > ranges[0][0]
+    elif index == len(ranges):
+        is_overlap = query[0] < ranges[index - 1][1]
+    else:
+        is_overlap = query[0] < ranges[index - 1][1] or query[1] > ranges[index][0]
+
+    if not is_overlap:
+        ranges.insert(index, query)
+    return is_overlap
+
+
+def get_aligns(
+    query_source: Transcript,
     sourced_text: SourcedText,
-    indexes: Tuple[int, int],
+    target_start: int,
+    alignments: str,
+) -> List[Dict[str, Union[str, int, float]]]:
+    """
+    Construct alignment information from levenshtein alignment with more attributes.
+
+    Args:
+      query_source:
+        A Transcript containing query.
+      sourced_text:
+        The SourcedText containing queries and references.
+      target_start:
+        The start index of target in sourced_text (the matched segment in references).
+      alignments:
+        The levenshtein alignment represented as `IDCS` sequence.
+
+    Returns:
+      Return a list of dict, each dict contains "ref", "hyp", "ref_pos", "hyp_pos", "hyp_time",
+      "ref_pos" and "hyp_pos" are local index in corresponding TextSource and Transcript,
+      "hyp_time" is from Transcript. The length of list equals to `len(alignments)`.
+
+    """
+    # [{"ref": , "hyp": , "ref_pos": , "hyp_pos": , "hyp_time":}]
+    aligns: List[Dict[str, Union[str, int, float]]] = []
+    q_index = 0
+    t_index = target_start
+    for i, t in enumerate(alignments):
+        hyp_time = float(query_source.times[q_index])
+        if t == "I":
+            aligns.append(
+                {
+                    "ref": "",
+                    "hyp": chr(query_source.binary_text[q_index]),
+                    "ref_pos": int(sourced_text.pos[t_index]),
+                    "hyp_pos": q_index,
+                    "hyp_time": hyp_time,
+                }
+            )
+            q_index += 1
+        elif t == "D":
+            aligns.append(
+                {
+                    "ref": chr(sourced_text.binary_text[t_index]),
+                    "hyp": "",
+                    "ref_pos": int(sourced_text.pos[t_index]),
+                    "hyp_pos": q_index,
+                    "hyp_time": hyp_time,
+                }
+            )
+            t_index += 1
+        else:
+            assert t == "C" or t == "S"
+            aligns.append(
+                {
+                    "ref": chr(sourced_text.binary_text[t_index]),
+                    "hyp": chr(query_source.binary_text[q_index]),
+                    "ref_pos": int(sourced_text.pos[t_index]),
+                    "hyp_pos": q_index,
+                    "hyp_time": hyp_time,
+                }
+            )
+            q_index += 1
+            t_index += 1
+    return aligns
+
+
+def get_segment_candidates(
+    target_source: TextSource, sourced_text: SourcedText, aligns
+) -> List[Tuple[int, int, float]]:
+    """
+    Split the long aligned sequence into smaller segments.
+
+    we create scores for each position in the alignment, corresponding to how good
+    a position it is to begin or end a split.
+
+     - begin a split (i.e. this is first position in a segment)
+        - plus score equal to log(num silence frames this
+          follows, up to some limit like 4.0 sec), i.e. this element
+          of the Transcript's time minus the previous element's time; or some default (4.0 sec)
+          if this is the first element of the Transcript.
+        - good if there are few errors around this point in the alignment, i.e.
+          score corresponding to number of ins,del,mismatch within a certain
+          region of this position.
+        - good if this reference position follows a whitespace character.
+        - good if the previous non-whitespace character was a punctuation
+          character.  (Lists of whitespace and punctuation characters can probably
+          be passed in, or we can use some kind of isspace for utf-8.).
+
+     - end a split (i.e. this is the last position in a segment).
+        - good if more silence follows this position.
+        - good if there are few errors around this point in the alignment, i.e.
+          score corresponding to number of ins,del,mismatch within a certain
+          region of this position.
+        - good if this reference position precedes a whitespace character.
+        - good if this position is a punctuation character.
+
+
+    We then create a rule to assign scores to potential segments. This consist of
+    the begin-scores, plus the end-scores, plus:
+      - Some kind of penalty related to the duration of the segment, e.g.
+        infinity if it's over some max-duration like 30 seconds or less than a
+        min-duration like 2 seconds; else, one that encourages a duration between
+        5 to 20 seconds.
+      - A bonus for the number of matches in the alignment.
+      - A penalty for the number of errors in the alignment (could multiply this by
+        some scale depending how much we don't want to have errors, but some errors
+        are expected due to both ASR errors and normalization differences.)
+
+    Next, we can do a search for a good segmentation.  You could define the problem
+    as getting the highest-scoring set of segments that do not overlap.  One
+    possible way to do it is as follows:
+       For each begin_position in the top 10% of scores, find the 4 best-scoring end_positions
+       For each end_position in the top 10% of scores, find the 4 best-scoring begin_positions
+    Append the preceding 2 sets of segments to get a list of candidate segments.
+
+    Args:
+      target_source:
+        A TextSource containing the matched reference.
+      sourced_text:
+        The SourcedText containing queries and references.
+      aligns:
+        Alignment information generated by `get_aligns`.
+
+    Returns:
+      Returns a list of tuple, each tuple contains the start position, end position and score of
+      current segment, start position and end position are indexes in aligns.
+    """
+    # [(index, score)]
+    begin_scores: List[Tuple[int, float]] = []
+    end_scores: List[Tuple[int, float]] = []
+
+    # levenshtein errors in given regin size
+    half_regin_size: int = 20
+    errors_in_regin: int = sum(
+        [
+            1 if align["ref"] != align["hyp"] else 0
+            for align in aligns[0:half_regin_size]
+        ]
+    )
+
+    max_silence = 4  # seconds
+    space_score = 3  # score for preceding(begin) and following(end) space
+    punctuation_score = 5  # score for preceding (begin) and following(end) punctuation
+
+    # Use cumsum to get matched and errors in a range efficiently
+    cumsum_match = [0] * len(aligns)
+    cumsum_error = [0] * len(aligns)
+
+    def is_end_punc(c):
+        return c in PUNCTUATION_END
+
+    for i, align in enumerate(aligns):
+        matched = align["ref"] == align["hyp"]
+        cumsum_match[i] = (
+            int(matched) if i == 0 else (cumsum_match[i - 1] + int(matched))
+        )
+        cumsum_error[i] = (
+            int(not matched) if i == 0 else (cumsum_error[i - 1] + int(not matched))
+        )
+
+        # silence
+        prev_silence = (
+            max_silence if i == 0 else (align["hyp_time"] - aligns[i - 1]["hyp_time"])
+        )
+        prev_silence = max_silence if prev_silence > max_silence else prev_silence
+        post_silence = (
+            max_silence
+            if i == len(aligns) - 1
+            else (aligns[i + 1]["hyp_time"] - align["hyp_time"])
+        )
+        post_silence = max_silence if post_silence > max_silence else post_silence
+
+        # erros in regin
+        if i - half_regin_size >= 0:
+            if aligns[i - half_regin_size]["ref"] != aligns[i - half_regin_size]["hyp"]:
+                errors_in_regin -= 1
+        if i + half_regin_size < len(aligns):
+            if aligns[i + half_regin_size]["ref"] != aligns[i + half_regin_size]["hyp"]:
+                errors_in_regin += 1
+
+        # white space
+        prev_space = space_score if i == 0 or aligns[i - 1]["ref"] == " " else 0
+        post_space = (
+            space_score if i == len(aligns) - 1 or aligns[i + 1]["ref"] == " " else 0
+        )
+
+        # punctuation
+        prev_punctuation = 0
+        j = align["ref_pos"] - 1
+        while j >= 0:
+            if target_source.binary_text[j] == ord(" "):
+                j -= 1
+            elif is_end_punc(target_source.binary_text[j]):
+                prev_punctuation = punctuation_score
+                break
+            else:
+                break
+
+        post_punctuation = 0
+        j = align["ref_pos"] + 1
+        while j < target_source.binary_text.size:
+            if target_source.binary_text[j] == ord(" "):
+                j += 1
+            elif is_end_punc(target_source.binary_text[j]):
+                post_punctuation = punctuation_score
+                break
+            else:
+                break
+        begin_scores.append(
+            (
+                i,
+                prev_silence
+                + prev_space
+                + prev_punctuation
+                - 2 * errors_in_regin / half_regin_size,
+            )
+        )
+        end_scores.append(
+            (
+                i,
+                post_silence
+                + post_space
+                + post_punctuation
+                - 2 * errors_in_regin / half_regin_size,
+            )
+        )
+
+    sorted_begin_scores = sorted(begin_scores, key=lambda x: x[1], reverse=True)
+    sorted_end_scores = sorted(end_scores, key=lambda x: x[1], reverse=True)
+
+    top_ratio = 0.1
+    top_begin = sorted_begin_scores[0 : int(len(begin_scores) * top_ratio)]
+    top_end = sorted_end_scores[0 : int(len(end_scores) * top_ratio)]
+
+    # (start, end, score)
+    begin_list: List[Tuple[int, int, float]] = []
+    end_list: List[Tuple[int, int, float]] = []
+
+    num_of_best_position = 4
+    duration_score = 5  # duration_score for segment between 5 ~ 20 seconds
+    max_errors_ratio = 0.25
+
+    for item in top_begin:
+        # Caution: Can only be modified with heappush and heappop, it is used as
+        # the container of a heap.
+        item_q = []
+        ind = item[0] + 1
+        while ind < len(end_scores):
+            score = begin_scores[item[0]][1] + end_scores[ind][1]
+            # matching scores
+            score += 3 * (cumsum_match[ind] - cumsum_match[item[0]]) / (ind - item[0])
+
+            # errors penalties
+            total_errors = cumsum_error[ind] - cumsum_error[item[0]]
+            # skipping segment with too much matching errors.
+            if total_errors >= (ind - item[0]) * max_errors_ratio:
+                ind += 1
+                continue
+            score -= 3 * (total_errors) / (ind - item[0])
+
+            # duration scores
+            duration = aligns[ind]["hyp_time"] - aligns[item[0]]["hyp_time"]
+            duration_score = (
+                float("-inf") if duration >= 30 or duration <= 2 else duration_score
+            )
+            duration_score = (
+                duration_score - (duration - 2)
+                if duration < 5 and duration > 2
+                else duration_score
+            )
+            duration_score = (
+                duration_score - (30 - duration) / 3
+                if duration > 20 and duration < 30
+                else duration_score
+            )
+
+            heappush(item_q, (score + duration_score, (item[0], ind)))
+            if len(item_q) > num_of_best_position:
+                heappop(item_q)
+            ind += 1
+        while item_q:
+            x = heappop(item_q)
+            begin_list.append((x[1][0], x[1][1], x[0]))
+
+    for item in top_end:
+        # Caution: Can only be modified with heappush and heappop, it is used as
+        # the container of a heap.
+        item_q = []
+        ind = item[0] - 1
+        while ind >= 0:
+            score = begin_scores[ind][1] + end_scores[item[0]][1]
+            # matching scores
+            score += 3 * (cumsum_match[item[0]] - cumsum_match[ind]) / (item[0] - ind)
+
+            # errors penalties
+            total_errors = cumsum_error[ind] - cumsum_error[item[0]]
+            # skipping segment with too much matching errors.
+            if total_errors >= (ind - item[0]) * max_errors_ratio:
+                ind -= 1
+                continue
+            score -= 3 * (total_errors) / (item[0] - ind)
+
+            # duration scores
+            duration = aligns[item[0]]["hyp_time"] - aligns[ind]["hyp_time"]
+            duration_score = (
+                float("-inf") if duration >= 30 or duration <= 2 else duration_score
+            )
+            duration_score = (
+                duration_score - (duration - 2)
+                if duration < 5 and duration > 2
+                else duration_score
+            )
+            duration_score = (
+                duration_score - (30 - duration) / 3
+                if duration > 20 and duration < 30
+                else duration_score
+            )
+
+            heappush(item_q, (score + duration_score, (ind, item[0])))
+            if len(item_q) > num_of_best_position:
+                heappop(item_q)
+            ind -= 1
+        while item_q:
+            x = heappop(item_q)
+            end_list.append((x[1][0], x[1][1], x[0]))
+
+    candidates = begin_list + end_list
+    return candidates
+
+
+def split_into_segments(
+    sourced_text: SourcedText, query_start: int, target_start: int, alignments: str
+) -> List[Dict[str, Union[str, int, float]]]:
+    """
+    Split a long sequence into smaller segments.
+
+    We will create scores for each position in the alignment, corresponding to how good
+    a position it is to begin or end a split. We can then create a rule to assign scores
+    to potential segments. The scores would consist of the begin-scores, plus the end-scores,
+    plus some kind of scores of given segment (duration, matching errors .etc).
+
+    Args:
+      sourced_text:
+        The sourced_text containing queries and references.
+      query_start:
+        The start index of query in sourced_text.
+      target_start:
+        The start index of target (matched part of reference) in sourced_text.
+      alignments:
+        The levenshtein alignment represented as `IDCS` sequence.
+    """
+    target_source = sourced_text.sources[sourced_text.doc[target_start]]
+    query_source = sourced_text.sources[sourced_text.doc[query_start]]
+
+    # construct aligns from levenshtein alignment with more information included.
+    aligns = get_aligns(
+        query_source=query_source,
+        sourced_text=sourced_text,
+        target_start=target_start,
+        alignments=alignments,
+    )
+
+    # candidates : (start, end, score), start and end are indexes in aligns
+    candidates = get_segment_candidates(
+        target_source=target_source, sourced_text=sourced_text, aligns=aligns
+    )
+
+    candidates = sorted(candidates, key=lambda x: x[2], reverse=True)
+
+    # Handle the overlapping
+    # Note: Don't modified selected_ranges, it will be manipulated in `is_overlap`
+    # and will be always kept sorted.
+    selected_ranges: List[Tuple[int, int]] = []
+    segments = []
+    for r in candidates:
+        if not is_overlap(selected_ranges, (r[0], r[1])):
+            segments.append(r)
+
+    results = []
+    min_text_length = 100
+
+    preceding_context_length = 500
+    for seg in segments:
+        begin_pos = aligns[seg[0]]["ref_pos"]
+        end_pos = aligns[seg[1]]["ref_pos"]
+        start = aligns[seg[0]]["hyp_time"]
+        duration = aligns[seg[1]]["hyp_time"] - aligns[seg[0]]["hyp_time"]
+
+        hyp_begin_pos = aligns[seg[0]]["hyp_pos"]
+        hyp_end_pos = aligns[seg[1]]["hyp_pos"]
+        hyp = "".join(
+            [chr(i) for i in query_source.binary_text[hyp_begin_pos:hyp_end_pos]]
+        )
+
+        # skipping segment that has too short text
+        if len(hyp) < min_text_length:
+            continue
+
+        ref = "".join([chr(i) for i in target_source.binary_text[begin_pos:end_pos]])
+
+        pre_index = (
+            begin_pos - preceding_context_length
+            if begin_pos - preceding_context_length >= 0
+            else 0
+        )
+
+        pre_ref = "".join(
+            [chr(i) for i in target_source.binary_text[pre_index:begin_pos]]
+        )
+
+        pre_index = (
+            hyp_begin_pos - preceding_context_length
+            if hyp_begin_pos - preceding_context_length > 0
+            else 0
+        )
+        pre_hyp = "".join(
+            [chr(i) for i in query_source.binary_text[pre_index:hyp_begin_pos]]
+        )
+
+        results.append(
+            {
+                "begin_byte": begin_pos,
+                "end_byte": end_pos,
+                "start_time": start,
+                "duration": duration,
+                "hyp": hyp,
+                "ref": ref,
+                "pre_ref": pre_ref,
+                "pre_hyp": pre_hyp,
+            }
+        )
+    return results
+
+
+def align_worker(
+    query_index: int,
+    sourced_text: SourcedText,
+    cut_indexes: Tuple[int, int],
     candidate_matches: List[Tuple[int, int]],
-) -> Tuple[Tuple[int, int], Tuple[int, int, str, str]]:
-    query_start = sourced_text.doc_splits[index]
-    query_end = sourced_text.doc_splits[index + 1]
+) -> Tuple[Tuple[int, int], Tuple[int, int, str]]:
+    """
+    Running levenshtein alignment on the given query (by query_index) and given
+    target (by candidate_matches), then split the matched reference into smaller
+    segments.
+
+    Args:
+      query_index:
+        The index of query (transcript).
+      sourced_text:
+        The sourced_text containing references and transcripts we constructed in
+        the previous stage.
+      cut_indexes:
+        Indicates which cut and which supervision this query comes from, just for
+        gathering results (this function runs in asynchronous).
+      candidate_matches:
+        Generated by `find_candidate_matches` containing a list of pair of indexes (start, end)
+        into the `sourced_text`. we can construct the target sequence with the help of
+        these indexes.
+
+    Returns:
+      Return the cut_indexes of current query and the alignment result.
+      The cut_indexes is a tuple of two int, the same as the input argument cut_indexes,
+      we will use it to gather results in the following stages.
+      The alignment result contains the start position in sourced_text of query and target
+      and also the alignment info represented as `IDCS` sequence (I : insertion,
+      D: deletion, C: correct, S: substitution).
+    """
+    query_start = sourced_text.doc_splits[query_index]
+    query_end = sourced_text.doc_splits[query_index + 1]
     query = sourced_text.binary_text[query_start:query_end]
     query_length = query_end - query_start
+
     min_cost: float = query_length
-    best_alignment: Tuple[float, List[Tuple[int, int, str]]] = None
+    # (start, end, alignment), the indexes are local indexes of target
+    best_alignment: Tuple[int, int, str] = None
+    # (start, end), the indexes are global indexes of sourced_text
     best_match: Tuple[int, int] = None
     for j, match in enumerate(candidate_matches):
         assert sourced_text.doc[match[0]] == sourced_text.doc[match[1]], (
@@ -100,10 +601,11 @@ def _align_worker(
             sourced_text.doc[match[1]],
         )
 
+        # The boundaries of current document
         start = sourced_text.doc_splits[sourced_text.doc[match[0]]]
         end = sourced_text.doc_splits[sourced_text.doc[match[0]] + 1]
 
-        # see more text on both side
+        # see more text on both side for more accurate levenshtein matching
         start = max(start, match[0] - query_length // 4)
         end = min(end, match[1] + query_length // 4)
 
@@ -112,94 +614,66 @@ def _align_worker(
         alignment = levenshtein_distance(query=query, target=target)
         if alignment[0] < min_cost:
             min_cost = alignment[0]
-            best_alignment = alignment
+            best_alignment = alignment[1][0]  # Takes only the first alignment for now
             best_match = (start, end)
 
     # best_match is global index into sourced_text
     # best_alignment is local index into target
-    start = best_match[0] + best_alignment[1][0][0]
-    end = best_match[0] + best_alignment[1][0][1]
+    start = best_match[0] + best_alignment[0]
+    # plus 1 here because the boundary given by best_alignment is [start, end] (end included)
+    end = best_match[0] + best_alignment[1] + 1
 
-    # start_pos and end_pos is local index into the source text (un-normalized)
-    start_pos = sourced_text.pos[start]
-    end_pos = sourced_text.pos[end]
-
-    text = "".join([chr(i) for i in query])
-    assert sourced_text.doc[start] == sourced_text.doc[end]
-    source = sourced_text.sources[sourced_text.doc[start]]
-    ref = "".join([chr(i) for i in source.binary_text[start_pos : end_pos + 1]])
-
-    # (ref, hyp, ref_char_pos, hyp_char_pos, hyp_time)
-    aligns: List[Tuple[str, str, int, int, float]] = []
-    assert sourced_text.doc[query_start] == sourced_text.doc[query_end] - 1
-    query_doc_index = sourced_text.doc[query_start]
-    query_source = sourced_text.sources[query_doc_index]
-    q_index = 0
-    t_index = start
-    for i, t in enumerate(best_alignment[1][0][2]):
-        hyp_time = float(query_source.times[q_index])
-        if t == "I":
-            aligns.append(
-                (
-                    "",
-                    chr(query_source.binary_text[q_index]),
-                    int(sourced_text.pos[t_index]),
-                    q_index + 1,
-                    hyp_time,
-                )
-            )
-            q_index += 1
-        elif t == "D":
-            aligns.append(
-                (
-                    chr(sourced_text.binary_text[t_index]),
-                    "",
-                    int(sourced_text.pos[t_index + 1]),
-                    q_index,
-                    hyp_time,
-                )
-            )
-            t_index += 1
-        else:
-            assert t == "E" or t == "R"
-            aligns.append(
-                (
-                    chr(sourced_text.binary_text[t_index]),
-                    chr(query_source.binary_text[q_index]),
-                    int(sourced_text.pos[t_index + 1]),
-                    q_index + 1,
-                    hyp_time,
-                )
-            )
-            q_index += 1
-            t_index += 1
-
-    return {"cut_index": indexes, "text": text, "ref": ref, "aligns": aligns}
+    assert sourced_text.doc[start] == sourced_text.doc[end - 1], (
+        sourced_text.doc[start],
+        sourced_text.doc[end - 1],
+    )
+    assert sourced_text.doc[query_start] == sourced_text.doc[query_end] - 1, (
+        sourced_text.doc[query_start],
+        sourced_text.doc[query_end] - 1,
+    )
+    return (cut_indexes, (query_start, start, best_alignment[2]))
 
 
 def process_one_batch(
     batch_cuts: List[MonoCut], params: AttributeDict, cuts_writer: SequentialJsonlWriter
 ):
     """
-    Process the text matching for a batch of cuts, each cuts could have multiple supervisions,
-    and write the new cuts (with some extra attributes, like text, begin pos, end pos).
+    Process the text matching algorithm for a batch of cuts, each cuts could
+    have multiple supervisions, and write the new cuts (with some extra attributes,
+    like text, begin pos, end pos).
+
+    Args:
+      batch_cuts:
+        A list of cuts, the same as cut generated by `lhotse prepare`, except that it contains
+        recognition results (in the format of AlignItem) and the reference book path.
+        TODO: It is hard to describe the content of a cut here, we could demonstrate this in some
+        higher level documents.
+      params:
+        Configurable arguments needed during the matching.
+      cuts_writer:
+        The writes to write out new cuts.
     """
     # List of transcripts (total number of valid supervisions in the cuts).
     transcripts: List[Transcript] = []
+
     # Contains cut index and local supervision index
     transcripts_cut_index: List[Tuple[int, int]] = []
+
     # Constructed from the valid books in the cuts
     books: List[TextSource] = []
+
+    # unique books exist in this batch of cuts
     book_paths: Set[str] = set()
     query_len = 0
 
-    # transcripts
+    # Construct transcripts
     for i, cut in enumerate(batch_cuts):
         # No text book available, skip this cut.
         if cut.text_path == "":
+            logging.warning(f"Skipping {cut.id} due to missing of reference book")
             continue
         for j, sup in enumerate(cut.supervisions):
-            # Transcript requires the input to be the dick like this.
+            # Transcript requires the input to be the dict like this.
             aligns = {"text": [], "begin_times": []}
             for ali in sup.alignment["symbol"]:
                 aligns["text"].append(ali.symbol)
@@ -217,11 +691,13 @@ def process_one_batch(
                 transcripts_cut_index.append((i, j))
         book_paths.add(cut.text_path)
 
-    # references
+    # Construct references (the books)
     for i, book_path in enumerate(book_paths):
         book_text = open(params.book_dir / book_path, "r").read()
         book = TextSource.from_str(
-            name=book_path, s=book_text, use_utf8=params.use_utf8,
+            name=book_path,
+            s=book_text,
+            use_utf8=params.use_utf8,
         )
         books.append(book)
 
@@ -238,19 +714,23 @@ def process_one_batch(
     def _is_not_punc(c: np.int32) -> bool:
         return c not in PUNCTUATION
 
+    # Removing the punctuation
     sourced_books = filter_texts(sourced_books, fn=_is_not_punc)
 
     sourced_text = append_texts([sourced_transcripts, sourced_books])
 
+    assert query_len == sourced_text.doc_splits[len(transcripts)], (
+        query_len,
+        sourced_text.doc_splits[len(transcripts)],
+    )
+
     logging.info(f"Creating suffix array.")
     suffix_array = create_suffix_array_from_sourced_text(sourced_text)
-    logging.info(f"Create suffix array done.")
 
     logging.info(f"Finding close matches.")
     close_matches = find_close_matches(
         suffix_array, query_len, num_close_matches=params.num_close_matches
     )
-    logging.info(f"Find close matches done.")
 
     logging.info(f"Finding candidates.")
     candidate_matches = find_candidate_matches(
@@ -259,37 +739,60 @@ def process_one_batch(
         num_candidates=params.num_candidates,
         length_ratio=params.match_length_ratio,
     )
-    logging.info(f"Find candidates done.")
 
     assert len(transcripts) == len(candidate_matches), (
         len(transcripts),
         len(candidate_matches),
     )
 
+    # Prepare arguments for levenshtein which would run in parallel
+    # Read https://docs.python.org/3/library/multiprocessing.html#multiprocessing.pool.ThreadPool
+    # for more details
     arguments = []
     for i in range(len(transcripts)):
         arguments.append(
             (i, sourced_text, transcripts_cut_index[i], candidate_matches[i])
         )
 
+    # Note: Only the levenshtein part runs in the ThreadPool.
+    # other parts are implemented in python, we can not speed them up due to
+    # the GIL
     num_processes = min(len(arguments), os.cpu_count())
     with Pool(num_processes) as pool:
         logging.info("Matching with levenshtein.")
-        async_results = pool.starmap_async(_align_worker, arguments)
+        async_results = pool.starmap_async(align_worker, arguments)
         results = async_results.get()
-        logging.info("Levenshtein done.")
 
-        valid_cuts = set()
-        for res in results:
-            cut_index = res["cut_index"]
-            batch_cuts[cut_index[0]].supervisions[cut_index[1]].text = res["text"]
-            batch_cuts[cut_index[0]].supervisions[cut_index[1]].aligns = res["aligns"]
-            batch_cuts[cut_index[0]].supervisions[cut_index[1]].ref = res["ref"]
-            valid_cuts.add(cut_index[0])
+        logging.info("Splitting into segments.")
+        cut_segment_index: Dict[str, int] = {}
+        segment_list = []
+        for item in results:
+            cut_indexes = item[0]
+            query_start, target_start, alignments = item[1]
+            segments = split_into_segments(
+                sourced_text=sourced_text,
+                query_start=query_start,
+                target_start=target_start,
+                alignments=alignments,
+            )
+
+            current_cut = batch_cuts[cut_indexes[0]]
+            if current_cut.id not in cut_segment_index:
+                cut_segment_index[current_cut.id] = 0
+
+            for seg in segments:
+                id = f"{current_cut.id}_{cut_segment_index[current_cut.id]}"
+                cut_segment_index[current_cut.id] += 1
+                audio = current_cut.recording.to_dict()
+                text_file = str(params.book_dir / current_cut.text_path)
+                seg["id"] = id
+                seg["audio"] = audio
+                seg["text_file"] = text_file
+                segment_list.append(seg)
 
         logging.info(f"Writing results.")
-        for index in valid_cuts:
-            cuts_writer.write(batch_cuts[index], flush=True)
+        for segment in segment_list:
+            cuts_writer.write(segment, flush=True)
         logging.info(f"Write results done.")
 
 

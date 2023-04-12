@@ -284,6 +284,8 @@ def texts_to_sourced_texts(
         binary_text = s.binary_text
         if uppercase:
             # 32 = ord('a')- ord('A')
+            # 97 = ord('a')
+            # 122 = ord('z')
             binary_text = np.where(
                 ((binary_text >= 97) & (binary_text <= 122)),
                 binary_text - 32,
