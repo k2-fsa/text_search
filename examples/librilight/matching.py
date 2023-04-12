@@ -16,6 +16,7 @@ from textsearch import (
     Transcript,
     SourcedText,
     append_texts,
+    create_suffix_array,
     filter_texts,
     find_candidate_matches,
     find_close_matches,
@@ -358,13 +359,14 @@ def get_segment_candidates(
     num_of_best_position = 4
     duration_score = 5  # duration_score for segment between 5 ~ 20 seconds
     max_errors_ratio = 0.25
+    max_text_length = 2000
 
     for item in top_begin:
         # Caution: Can only be modified with heappush and heappop, it is used as
         # the container of a heap.
         item_q = []
         ind = item[0] + 1
-        while ind < len(end_scores):
+        while ind < min(len(end_scores), item[0] + max_text_length):
             score = begin_scores[item[0]][1] + end_scores[ind][1]
             # matching scores
             score += 3 * (cumsum_match[ind] - cumsum_match[item[0]]) / (ind - item[0])
@@ -406,7 +408,7 @@ def get_segment_candidates(
         # the container of a heap.
         item_q = []
         ind = item[0] - 1
-        while ind >= 0:
+        while ind >= max(0, item[0] - max_text_length):
             score = begin_scores[ind][1] + end_scores[item[0]][1]
             # matching scores
             score += 3 * (cumsum_match[item[0]] - cumsum_match[ind]) / (item[0] - ind)
