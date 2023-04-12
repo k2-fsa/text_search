@@ -20,8 +20,6 @@
 #ifndef TEXTSEARCH_CSRC_SUFFIX_ARRAY_H_
 #define TEXTSEARCH_CSRC_SUFFIX_ARRAY_H_
 
-#include <cstdint>
-
 namespace fasttextsearch {
 /*
   This function creates a suffix array; it is based on the
@@ -63,7 +61,7 @@ namespace fasttextsearch {
     not much more than `text_array` itself).
  */
 template <typename T>
-void CreateSuffixArray(const T *text_array, int32_t seq_len, int32_t max_symbol,
+void CreateSuffixArray(const T *text_array, T seq_len, T max_symbol,
                        T *suffix_array);
 
 } // namespace fasttextsearch

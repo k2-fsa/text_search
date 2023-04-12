@@ -55,8 +55,7 @@ static void RadixPass(const T *a, T *b, const T *r, T n, T K) {
 // See documentation in suffix_array.h, where we use different names
 // for the arguments (here, we leave the names the same as in
 // https://algo2.iti.kit.edu/documents/jacm05-revised.pdf.
-template <typename T>
-void CreateSuffixArray(const T *text, int32_t n, int32_t K, T *SA) {
+template <typename T> void CreateSuffixArray(const T *text, T n, T K, T *SA) {
   if (n == 1) { // The paper's code didn't seem to handle n == 1 correctly.
     SA[0] = 0;
     return;
