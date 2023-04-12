@@ -31,9 +31,9 @@ class TestSuffixArray(unittest.TestCase):
         for dtype in [np.uint8, np.int8, np.uint16, np.int16]:
             array = np.array([3, 2, 1], dtype=dtype)
             suffix_array = create_suffix_array(array)
-            expected_array = np.array([2, 1, 0, 3], dtype=np.int64)
+            expected_array = np.array([2, 1, 0, 3], dtype=np.int32)
             self.assertTrue((suffix_array == expected_array).all())
-            self.assertTrue(suffix_array.dtype == np.int64)
+            self.assertTrue(suffix_array.dtype == np.int32)
 
     def test_find_close_matches(self):
         """
@@ -95,7 +95,7 @@ class TestSuffixArray(unittest.TestCase):
         expected_output = np.array(
             [28, 22, 28, 23, 10, 24, 13, 25, 27, 12, 28,
              22, 28, 23, 10, 24, 13, 25, 27, 12],
-            dtype=np.int64,
+            dtype=np.int32,
         )
         # fmt: on
         self.assertTrue((output == expected_output).all())
