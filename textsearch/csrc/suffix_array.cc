@@ -55,7 +55,8 @@ static void RadixPass(const T *a, T *b, const T *r, T n, T K) {
 // See documentation in suffix_array.h, where we use different names
 // for the arguments (here, we leave the names the same as in
 // https://algo2.iti.kit.edu/documents/jacm05-revised.pdf.
-template <typename T> void CreateSuffixArray(const T *text, T n, T K, T *SA) {
+template <typename T>
+void CreateSuffixArray(const T *text, int32_t n, int32_t K, T *SA) {
   if (n == 1) { // The paper's code didn't seem to handle n == 1 correctly.
     SA[0] = 0;
     return;
@@ -69,9 +70,11 @@ template <typename T> void CreateSuffixArray(const T *text, T n, T K, T *SA) {
   //******* Step 0: Construct sample ********
   // generate positions of mod 1 and mod 2 suffixes
   // the "+(n0-n1)" adds a dummy mod 1 suffix if n%3 == 1
-  for (T i = 0, j = 0; i < n + (n0 - n1); i++)
-    if (i % 3 != 0)
+  for (T i = 0, j = 0; i < n + (n0 - n1); i++) {
+    if (i % 3 != 0) {
       R[j++] = i;
+    }
+  }
   //******* Step 1: Sort sample suffixes ********
   // lsb radix sort the mod 1 and mod 2 triples
   RadixPass(R.data(), SA12.data(), text + 2, n02, K);
@@ -137,9 +140,6 @@ template <typename T> void CreateSuffixArray(const T *text, T n, T K, T *SA) {
   }
 }
 
-// Instantiate template for int64_t and int32_t
-template void CreateSuffixArray(const int64_t *text, int64_t n, int64_t K,
-                                int64_t *SA);
 template void CreateSuffixArray(const int32_t *text, int32_t n, int32_t K,
                                 int32_t *SA);
 } // namespace fasttextsearch
