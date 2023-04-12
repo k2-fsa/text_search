@@ -18,36 +18,78 @@ import _fasttextsearch
 import numpy as np
 
 
-def create_suffix_array(input: np.ndarray) -> np.ndarray:
-    """
-    Creates a suffix array from the input text and returns it as a NumPy array.  Read
-    the usage carefully as it has some special requirements that will require careful data
-    preparation.
+def _renumbering(array: np.ndarray) -> np.ndarray:
+    """Renumber element in the input array such that the returned array
+    contains entries ranging from 0 to M - 1, where M equals
+    to number of unique entries in the input array.
+
+    The order of entries in the output array is the same as the order
+    of entries in the input array. That is, if array[i] < array[j], then
+    ans[i] < ans[j].
 
     Args:
-       input: an integer (or unsigned integer) type of np.ndarray.  Its shape
-          should be (seq_len + 3,) where `seq_len` is the text sequence length INCLUDING
-          EOS SYMBOL.
-          The EOS (end of sequence) symbol must be the second largest element of the
-          type (i.e. of the form 2^n - 2), must be located at input[seq_len - 1] and
-          must appear nowhere else in `input` (you may have to map the input
-          symbols somehow to achieve this).  It must be followed by 3 zeros, for reasons
-          related to how the algorithm works.
+      array:
+        A 1-D array.
     Returns:
-          Returns a suffix array of type np.int64,
-          of shape (seq_len,).  This will consist of some permutation of the elements
-          0 .. seq_len - 1.
+      Return a renumbered 1-D array.
     """
-    assert input.ndim == 1, input.ndim
-    seq_len = input.size - 3
-    assert seq_len >= 1, seq_len
-    max_symbol = input[seq_len - 1]
-    assert max_symbol > np.max(input[0: seq_len - 1])
-    assert bool(input[seq_len:].any()) is False, input[seq_len:]
+    uniqued, inverse = np.unique(array, return_inverse=True)
+    # Note: uniqued[inverse] == array
+
+    if uniqued.size < np.iinfo(np.uint8).max:
+        ans_dtype = np.uint8
+    elif uniqued.size < np.iinfo(np.uint32).max:
+        ans_dtype = np.uint32
+    else:
+        # unlikely
+        ans_dtype = np.int64
+
+    indexes_sorted2unsorted = np.argsort(uniqued)
+    indexes_unsorted2sorted = np.empty((uniqued.size), dtype=ans_dtype)
+    indexes_unsorted2sorted[indexes_sorted2unsorted] = np.arange(uniqued.size)
+
+    return indexes_unsorted2sorted[inverse]
+
+
+def create_suffix_array(
+    array: np.ndarray,
+    enable_renumbering: bool = True,
+) -> np.ndarray:
+    """Create a suffix array from a 1-D input array.
+
+    hint:
+      Please refer to https://en.wikipedia.org/wiki/Suffix_array
+      for what suffix array is. Different from the above Wikipedia
+      article the special sentinel letter ``$`` in fasttextsearch
+      is known as EOS and it is larger than any other characters.
+
+    Args:
+      array:
+        A 1-D integer (or unsigned integer) array of shape (seq_len,).
+        Note: Inside this function, we will append explicitly an EOS
+        symbol that is larger than ``array.max()``.
+      enable_renumbering:
+        True to enable renumbering before computing the suffix array.
+    Returns:
+      Returns a suffix array of type np.int64, of shape (seq_len,).
+      This will consist of some permutation of the elements
+      ``0 .. seq_len - 1``.
+    """
+    assert array.ndim == 1, array.ndim
+
+    if enable_renumbering:
+        array = _renumbering(array)
+
+    max_symbol = array.max()
+    assert max_symbol < np.iinfo(array.dtype).max - 1, max_symbol
+    eos = max_symbol + 1
+    padding = np.array([eos, 0, 0, 0], dtype=array.dtype)
+
+    padded_array = np.concatenate([array, padding])
 
     # The C++ code requires the input array to be contiguous.
-    input64 = np.ascontiguousarray(input, dtype=np.int64)
-    return _fasttextsearch.create_suffix_array(input64)
+    array_int64 = np.ascontiguousarray(padded_array, dtype=np.int64)
+    return _fasttextsearch.create_suffix_array(array_int64)
 
 
 def find_close_matches(

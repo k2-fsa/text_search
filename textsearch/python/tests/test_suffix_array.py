@@ -29,7 +29,7 @@ from textsearch import create_suffix_array, find_close_matches
 class TestSuffixArray(unittest.TestCase):
     def test_create_suffix_array(self):
         for dtype in [np.uint8, np.int8, np.uint16, np.int16]:
-            array = np.array([3, 2, 1, np.iinfo(dtype).max - 1, 0, 0, 0], dtype=dtype)
+            array = np.array([3, 2, 1], dtype=dtype)
             suffix_array = create_suffix_array(array)
             expected_array = np.array([2, 1, 0, 3], dtype=np.int64)
             self.assertTrue((suffix_array == expected_array).all())
@@ -78,12 +78,7 @@ class TestSuffixArray(unittest.TestCase):
 
         # texts will be : "hellohalloiholloyouyouhellome"
         texts = "".join(queries) + "".join(documents)
-        texts_array = [ord(x) for x in texts] + [
-            np.iinfo(np.int8).max - 1,  # for ascii
-            0,
-            0,
-            0,
-        ]
+        texts_array = [ord(x) for x in texts]
         texts_array = np.array(texts_array, dtype=np.int8)
         suffix_array = create_suffix_array(texts_array)
 

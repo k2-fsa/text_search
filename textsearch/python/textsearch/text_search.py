@@ -22,19 +22,6 @@ from .suffix_array import create_suffix_array
 from .datatypes import SourcedText
 
 
-def create_suffix_array_from_sourced_text(text: SourcedText) -> np.ndarray:
-    extend_text = np.concatenate(
-        (
-            text.binary_text,
-            np.array(
-                [np.max(text.binary_text) + 1, 0, 0, 0], dtype=text.binary_text.dtype
-            ),
-        ),
-        axis=0,
-    )
-    return create_suffix_array(extend_text)
-
-
 def find_candidate_matches(
     close_matches: np.ndarray,
     text: SourcedText,

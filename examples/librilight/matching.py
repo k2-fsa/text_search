@@ -16,7 +16,6 @@ from textsearch import (
     Transcript,
     SourcedText,
     append_texts,
-    create_suffix_array_from_sourced_text,
     filter_texts,
     find_candidate_matches,
     find_close_matches,
@@ -725,7 +724,7 @@ def process_one_batch(
     )
 
     logging.info(f"Creating suffix array.")
-    suffix_array = create_suffix_array_from_sourced_text(sourced_text)
+    suffix_array = create_suffix_array(sourced_text.binary_text)
 
     logging.info(f"Finding close matches.")
     close_matches = find_close_matches(
