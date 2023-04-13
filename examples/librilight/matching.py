@@ -6,7 +6,7 @@ from bisect import bisect_left
 from heapq import heappush, heappop
 from pathlib import Path
 from typing import Dict, List, Set, Tuple, Union
-from multiprocessing.pool import ThreadPool as Pool
+from multiprocessing.pool import Pool
 
 from lhotse import MonoCut, CutSet, load_manifest_lazy
 from lhotse.serialization import SequentialJsonlWriter
@@ -632,7 +632,15 @@ def align_worker(
         sourced_text.doc[query_start],
         sourced_text.doc[query_end] - 1,
     )
-    return (cut_indexes, (query_start, start, best_alignment[2]))
+
+    segments = split_into_segments(
+        sourced_text=sourced_text,
+        query_start=query_start,
+        target_start=start,
+        alignments=best_alignment[2],
+    )
+
+    return (cut_indexes, segments)
 
 
 def process_one_batch(
@@ -769,13 +777,7 @@ def process_one_batch(
         segment_list = []
         for item in results:
             cut_indexes = item[0]
-            query_start, target_start, alignments = item[1]
-            segments = split_into_segments(
-                sourced_text=sourced_text,
-                query_start=query_start,
-                target_start=target_start,
-                alignments=alignments,
-            )
+            segments = item[1]
 
             current_cut = batch_cuts[cut_indexes[0]]
             if current_cut.id not in cut_segment_index:
