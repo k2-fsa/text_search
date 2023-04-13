@@ -61,13 +61,13 @@ Returns:
 >>> target = np.array([1, 5, 3, 4, 6, 7, 1, 2, 4], dtype=np.int32)
 >>> distance, alignments = levenshtein_distance(query, target)
 >>> print (distance, alignments)
-1 [(0, 3, 'EREE'), (6, 8, 'EEIE')]
+1 [(0, 3, 'CSCC'), (6, 8, 'CCIC')]
 
 The result above indicates that there are two segments in target sequence having
 the same levenshtein distance with query sequence. The levenshtein distance is 1,
 the end index of first segment into target sequence is 3 ([1,5,3,4]), and the
 end index of second sequence is 8 ([1,2,4]). For the align string, `I` means
-insertion, `D` means deletion, `R` means replacement, `E` means equal.
+insertion, `D` means deletion, `S` means substitution, `C` means correct.
 )doc";
 
 template <typename T>
@@ -86,8 +86,9 @@ PybindLevenshteinHelper(py::array_t<T, py::array::c_style> &query,
   auto query_data = query.data();
   auto target_data = target.data();
 
-  std::vector<AlignItem> alignments;
+  py::gil_scoped_release release;
 
+  std::vector<AlignItem> alignments;
   int32_t distance =
       LevenshteinDistance(query_data, query.size(), target_data, target.size(),
                           &alignments, insert_cost, delete_cost, replace_cost);
