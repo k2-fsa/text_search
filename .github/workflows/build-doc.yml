@@ -34,7 +34,12 @@ jobs:
       - name: Build doc
         shell: bash
         run: |
-          cd docs
+          mkdir build
+          cd build
+          cmake ..
+          make -j
+
+          cd ../docs
           python3 -m pip install -r ./requirements.txt
 
           make html
