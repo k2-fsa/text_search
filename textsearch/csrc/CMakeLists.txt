@@ -1,4 +1,5 @@
 set(textsearch_srcs
+  match.cc
   suffix_array.cc
   utils.cc
 )
@@ -25,6 +26,7 @@ if(FTS_ENABLE_TESTS)
   # please sort the source files alphabetically
   set(test_srcs
     levenshtein_test.cc
+    match_test.cc
     suffix_array_test.cc
   )
 
