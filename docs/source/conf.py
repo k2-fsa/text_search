@@ -17,6 +17,8 @@ import sys
 import sphinx_rtd_theme
 
 sys.path.insert(0, os.path.abspath("."))
+sys.path.insert(0, os.path.abspath("../../textsearch/python"))
+sys.path.insert(0, os.path.abspath("../../build/lib"))
 
 
 # -- Project information -----------------------------------------------------
@@ -49,6 +51,7 @@ extensions = [
     "recommonmark",
     "sphinx.ext.autodoc",
     "sphinx.ext.githubpages",
+    "sphinx.ext.linkcode",
     "sphinx.ext.napoleon",
     "sphinx_autodoc_typehints",
     "sphinx_rtd_theme",
@@ -108,3 +111,34 @@ rst_epilog = """
 mathjax_path = (
     "https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
 )
+
+# Resolve function for the linkcode extension.
+# Modified from https://github.com/rwth-i6/returnn/blob/master/docs/conf.py
+def linkcode_resolve(domain, info):
+    def find_source():
+        # try to find the file and line number, based on code from numpy:
+        # https://github.com/numpy/numpy/blob/master/doc/source/conf.py#L286
+        obj = sys.modules[info["module"]]
+        for part in info["fullname"].split("."):
+            obj = getattr(obj, part)
+        import inspect
+        import os
+
+        fn = inspect.getsourcefile(obj)
+        print("fn", fn)
+        fn = os.path.relpath(fn, start="text_search")
+        print("fn2", fn)
+        source, lineno = inspect.getsourcelines(obj)
+        return fn, lineno, lineno + len(source) - 1
+
+    if domain != "py" or not info["module"]:
+        return None
+    try:
+        filename = "{}#L{}-L{}".format(*find_source())
+    except Exception:
+        return None
+
+    print("filename", filename)
+    idx = filename.rfind("textsearch")
+    filename = filename[idx:]
+    return f"https://github.com/danpovey/text_search/blob/master/textsearch/python/{filename}"

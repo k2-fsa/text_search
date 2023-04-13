@@ -12,3 +12,4 @@ Welcome to fasttextsearch's documentation!
 
    ./install/index.rst
    ./tutorials/index.rst
+   ./python-api/index.rst

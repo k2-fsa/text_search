@@ -43,34 +43,39 @@ def _renumbering(array: np.ndarray) -> np.ndarray:
     return indexes_unsorted2sorted[inverse]
 
 
-def create_suffix_array(
-    array: np.ndarray,
-    enable_renumbering: bool = True,
-) -> np.ndarray:
+def create_suffix_array(array: np.ndarray) -> np.ndarray:
     """Create a suffix array from a 1-D input array.
 
     hint:
       Please refer to https://en.wikipedia.org/wiki/Suffix_array
       for what suffix array is. Different from the above Wikipedia
-      article the special sentinel letter ``$`` in fasttextsearch
+      article the special sentinel letter ``$`` in `fasttextsearch`_
       is known as EOS and it is larger than any other characters.
 
     Args:
       array:
-        A 1-D integer (or unsigned integer) array of shape (seq_len,).
-        Note: Inside this function, we will append explicitly an EOS
-        symbol that is larger than ``array.max()``.
-      enable_renumbering:
-        True to enable renumbering before computing the suffix array.
+        A 1-D integer (or unsigned integer) array of shape ``(seq_len,)``.
+
+        Note:
+          Inside this function, we will append explicitly an EOS
+          symbol that is larger than ``array.max()``.
     Returns:
-      Returns a suffix array of type np.int32, of shape (seq_len,).
+      Returns a suffix array of type ``np.int32``, of shape ``(seq_len,)``.
       This will consist of some permutation of the elements
       ``0 .. seq_len - 1``.
+
+    **Usage examples**:
+
+        .. literalinclude:: code/suffix-array.py
     """
     assert array.ndim == 1, array.ndim
 
-    if enable_renumbering:
-        array = _renumbering(array)
+    # Renumber elements in the array so that array.max() equals
+    # to the number of unique elements in the array.
+    #
+    # In the implementation, we allocate an array of size array.max().
+    # A smaller value of array.max() leads to less memory allocation.
+    array = _renumbering(array)
 
     max_symbol = array.max()
     assert max_symbol < np.iinfo(array.dtype).max - 1, max_symbol
