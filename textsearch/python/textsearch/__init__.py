@@ -10,6 +10,9 @@ from .datatypes import filter_texts
 from .datatypes import texts_to_sourced_texts
 
 from .levenshtein import get_nice_alignments
+
+from .match import get_longest_increasing_pairs
+
 from .suffix_array import create_suffix_array
 from .suffix_array import find_close_matches
 

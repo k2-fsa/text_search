@@ -110,18 +110,19 @@ struct GoodMatchCount {
  *                    (i2,j2), ... (iN, jN) such that i1 <= i2 <= ... <= iN,
  *                    and j1 <= j2 <= ... <= jN when returned.
  */
-void GetBestBackTrace(const int32_t *seq1, const int32_t *seq2, int32_t size,
-                      std::vector<std::pair<int32_t, int32_t>> *best_trace);
+void GetLongestIncreasingPairs(
+    const int32_t *seq1, const int32_t *seq2, int32_t size,
+    std::vector<std::pair<int32_t, int32_t>> *best_trace);
 
 /*
- * The same as `GetBestBackTrace`, the difference is `GetBestBackTraceSimple`
- * was implemented in a simpler way by using two loops (quadratic time
- * complexity).
+ * The same as `GetLongestIncreasingPairs`, the difference is
+ * `GetLongestIncreasingPairsSimple` was implemented in a simpler way by using
+ * two loops (quadratic time complexity).
  *
  * Caution: Don't use this function, it is slow, we implement it for testing
  * purpose.
  */
-void GetBestBackTraceSimple(
+void GetLongestIncreasingPairsSimple(
     const int32_t *seq1, const int32_t *seq2, int32_t size,
     std::vector<std::pair<int32_t, int32_t>> *best_trace);
 } // namespace fasttextsearch

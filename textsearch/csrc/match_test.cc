@@ -22,21 +22,20 @@
 #include <chrono>
 #include <cstdlib>
 #include <ctime>
-#include <sys/time.h>
 #include <vector>
 
 #include "textsearch/csrc/match.h"
 
 namespace fasttextsearch {
 
-TEST(GetBestBackTrace, TestBasic) {
+TEST(GetLongestIncreasingPairs, TestBasic) {
   std::vector<int32_t> seq1({0, 1, 1, 2, 2, 3, 4, 5, 6});
   std::vector<int32_t> seq2({9, 7, 8, 9, 6, 7, 10, 12, 8});
   std::vector<std::pair<int32_t, int32_t>> best_trace;
   std::vector<std::pair<int32_t, int32_t>> best_trace_simple;
-  GetBestBackTrace(seq1.data(), seq2.data(), seq1.size(), &best_trace);
-  GetBestBackTraceSimple(seq1.data(), seq2.data(), seq1.size(),
-                         &best_trace_simple);
+  GetLongestIncreasingPairs(seq1.data(), seq2.data(), seq1.size(), &best_trace);
+  GetLongestIncreasingPairsSimple(seq1.data(), seq2.data(), seq1.size(),
+                                  &best_trace_simple);
   std::vector<std::pair<int32_t, int32_t>> expected_trace(
       {{5, 12}, {4, 10}, {2, 9}, {1, 8}, {1, 7}});
   for (int32_t i = 0; i < best_trace.size(); ++i) {
@@ -45,7 +44,7 @@ TEST(GetBestBackTrace, TestBasic) {
   }
 }
 
-TEST(GetBestBackTrace, TestRandom) {
+TEST(GetLongestIncreasingPairs, TestRandom) {
   std::srand(std::time(0)); // use current time as seed for random generator
   int32_t length = std::rand() % 10000 + 10000;
   std::vector<int32_t> seq1(length);
@@ -58,7 +57,7 @@ TEST(GetBestBackTrace, TestRandom) {
   std::vector<std::pair<int32_t, int32_t>> best_trace_simple;
 
   auto begin = std::chrono::steady_clock::now();
-  GetBestBackTrace(seq1.data(), seq2.data(), length, &best_trace);
+  GetLongestIncreasingPairs(seq1.data(), seq2.data(), length, &best_trace);
   auto end = std::chrono::steady_clock::now();
   std::cout << "Sequence length : " << length << std::endl;
   std::cout << "Elapsed(ms)="
@@ -69,7 +68,8 @@ TEST(GetBestBackTrace, TestRandom) {
             << std::endl;
 
   begin = std::chrono::steady_clock::now();
-  GetBestBackTraceSimple(seq1.data(), seq2.data(), length, &best_trace_simple);
+  GetLongestIncreasingPairsSimple(seq1.data(), seq2.data(), length,
+                                  &best_trace_simple);
   end = std::chrono::steady_clock::now();
   std::cout << "Simple elapsed(ms)="
             << std::chrono::duration_cast<std::chrono::microseconds>(end -
