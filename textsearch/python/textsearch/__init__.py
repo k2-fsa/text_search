@@ -16,5 +16,4 @@ from .suffix_array import find_close_matches
 
 from .text_search import find_candidate_matches
 
-from .utils import AttributeDict
 from .utils import row_ids_to_row_splits
