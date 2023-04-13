@@ -72,7 +72,7 @@ def get_nice_alignments(
                 ms += f"{'-':{sl}}"
                 ts += f"{ts_:{sl}}"
                 j = j + 1
-            elif k == "R" or k == "E":
+            elif k == "S" or k == "C":
                 # correct or a substitution error
                 qs_ = f"{query[i]} "
                 ts_ = f"{target[j]} "
@@ -80,7 +80,7 @@ def get_nice_alignments(
 
                 qs += f"{qs_:{sl}}"
                 ts += f"{ts_:{sl}}"
-                if k == "E":
+                if k == "C":
                     ms += f"{'|':{sl}}"
                 else:
                     ms += f"{'#':{sl}}"

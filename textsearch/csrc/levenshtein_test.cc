@@ -41,7 +41,7 @@ TEST(Levenshtein, TestBasic) {
   auto expected_end = std::vector<int64_t>({6, 15, 16, 26});
   auto expected_start = std::vector<int64_t>({0, 10, 10, 19});
   auto expected_align = std::vector<std::string>(
-      {"EIEEREEE", "IEEEEEEI", "IEEEEEER", "EDEEEEEEI"});
+      {"CICCSCCC", "ICCCCCCI", "ICCCCCCS", "CDCCCCCCI"});
   for (size_t i = 0; i < alignments.size(); ++i) {
     auto &align = alignments[i];
     EXPECT_EQ(align.cost, 2);
@@ -81,18 +81,18 @@ TEST(Levenshtein, TestRandom) {
     if (type == 0) {
       query.push_back(ref_len);
       query.push_back(ref[i]);
-      oss << "IE";
+      oss << "IC";
       cost += 1;
     } else if (type == 1) {
       oss << "D";
       cost += 1;
     } else if (type == 2) {
       query.push_back(ref_len);
-      oss << "R";
+      oss << "S";
       cost += 1;
     } else {
       query.push_back(ref[i]);
-      oss << "E";
+      oss << "C";
     }
   }
   auto align_str = oss.str();

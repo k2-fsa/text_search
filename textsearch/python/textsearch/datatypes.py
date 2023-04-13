@@ -44,7 +44,7 @@ class TextSource:
             return "".join([chr(i) for i in self.binary_text])
 
     @staticmethod
-    def from_str(name: str, s: str, use_utf8: bool, uppercase: bool = False) -> "TextSource":
+    def from_str(name: str, s: str, use_utf8: bool) -> "TextSource":
         """Construct an instance of TextSource from a string.
 
         Args:
@@ -56,8 +56,6 @@ class TextSource:
             True to encode the text with utf-8.
             False to save the Unicode codepoint of the text.
         """
-        if uppercase:
-            s = s.upper()
 
         if use_utf8:
             binary_text = s.encode("utf-8")
@@ -70,11 +68,7 @@ class TextSource:
             binary_text = np.fromiter((ord(i) for i in s), dtype=np.int32, count=len(s))
             pos = _find_byte_offsets_for_utf8_symbols(binary_text)
 
-            return TextSource(
-                name=name,
-                binary_text=binary_text,
-                pos=pos,
-            )
+            return TextSource(name=name, binary_text=binary_text, pos=pos,)
 
 
 def _find_byte_offsets_for_utf8_symbols(binary_text: np.ndarray) -> np.ndarray:
@@ -148,7 +142,9 @@ class Transcript:
             return "".join([chr(i) for i in self.binary_text])
 
     @staticmethod
-    def from_dict(name: str, d: dict, use_utf8: bool, is_bpe: bool = False, uppercase: bool = False) -> "Transcript":
+    def from_dict(
+        name: str, d: dict, use_utf8: bool, is_bpe: bool = False
+    ) -> "Transcript":
         """
         Args:
           name:
@@ -177,7 +173,6 @@ class Transcript:
             byte_list = []
             time_list = []
             for text, begin_time in zip(d["text"], d["begin_times"]):
-                text = text.upper() if uppercase else text
                 text = text.replace("▁", " ") if is_bpe else text
 
                 b = text.encode("utf-8")
@@ -201,7 +196,6 @@ class Transcript:
             codepoint_list = []
             time_list = []
             for text, begin_time in zip(d["text"], d["begin_times"]):
-                text = text.upper() if uppercase else text
                 text = text.replace("▁", " ") if is_bpe else text
 
                 codepoint_list.append(ord(i) for i in text)
@@ -247,7 +241,7 @@ class SourcedText:
 
     # The document index for each element of the text.
     # The np.ndarray would be of type uint32.
-    doc: Union[int, np.ndarray]
+    doc: np.ndarray
 
     # For reference, the list of available text sources that this text might come from.
     sources: TextSources
@@ -268,7 +262,9 @@ class SourcedText:
         return self._doc_splits
 
 
-def texts_to_sourced_texts(sources: TextSources) -> List[SourcedText]:
+def texts_to_sourced_texts(
+    sources: TextSources, uppercase: bool = False
+) -> List[SourcedText]:
     """Construct a list of SourcedText from TextSources.
     We have len(ans) == len(sources).
     """
@@ -283,12 +279,24 @@ def texts_to_sourced_texts(sources: TextSources) -> List[SourcedText]:
         # If s.binary_text.dtype is np.uint8, pos[i] is the position of the
         # i-th byte of s.binary_text
         pos = np.arange(s.binary_text.size, dtype=np.uint32)
+        doc = np.zeros(s.binary_text.size, dtype=np.uint32)
+
+        binary_text = s.binary_text
+        if uppercase:
+            # 32 = ord('a')- ord('A')
+            # 97 = ord('a')
+            # 122 = ord('z')
+            binary_text = np.where(
+                ((binary_text >= 97) & (binary_text <= 122)),
+                binary_text - 32,
+                binary_text,
+            )
 
         ans.append(
             SourcedText(
-                binary_text=s.binary_text,
+                binary_text=binary_text,
                 pos=pos,
-                doc=0,  # indexes into the following `sources` attribte
+                doc=doc,  # indexes into the following `sources` attribte
                 sources=[s],
             )
         )
@@ -334,12 +342,7 @@ def append_texts(texts: List[SourcedText]) -> SourcedText:
 
     sources = [s for t in texts for s in t.sources]
 
-    return SourcedText(
-        binary_text=binary_text,
-        pos=pos,
-        doc=doc,
-        sources=sources,
-    )
+    return SourcedText(binary_text=binary_text, pos=pos, doc=doc, sources=sources,)
 
 
 def filter_texts(
@@ -373,9 +376,4 @@ def filter_texts(
     doc = t.doc
     if not isinstance(t.doc, int):
         doc = t.doc[new2old]
-    return SourcedText(
-        binary_text=binary_text,
-        pos=pos,
-        doc=doc,
-        sources=t.sources,
-    )
+    return SourcedText(binary_text=binary_text, pos=pos, doc=doc, sources=t.sources,)
