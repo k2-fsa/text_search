@@ -35,8 +35,10 @@ PybindSuffixArrayHelper(py::array_t<int32_t> input) {
   auto suffix_array = py::array_t<int32_t>(seq_len);
   py::buffer_info sa_buf = suffix_array.request();
   auto sa_data = static_cast<int32_t *>(sa_buf.ptr);
-
-  CreateSuffixArray<int32_t>(input_data, seq_len, max_symbol, sa_data);
+  {
+    py::gil_scoped_release release;
+    CreateSuffixArray<int32_t>(input_data, seq_len, max_symbol, sa_data);
+  }
   return suffix_array;
 }
 

@@ -25,7 +25,7 @@ class TestSourcedText(unittest.TestCase):
         np.testing.assert_equal(
             sourced_text[0].pos, np.arange(text_source.binary_text.size)
         )
-        assert sourced_text[0].doc == 0, sourced_text[0].doc
+        np.testing.assert_equal(sourced_text[0].doc,np.zeros(text_source.binary_text.size))
         assert len(sourced_text[0].sources) == 1, len(sourced_text[0].sources)
         assert sourced_text[0].sources[0] is text_source
 
@@ -41,7 +41,7 @@ class TestSourcedText(unittest.TestCase):
         np.testing.assert_equal(
             sourced_text[0].pos, np.arange(text_source.binary_text.size)
         )
-        assert sourced_text[0].doc == 0, sourced_text[0].doc
+        np.testing.assert_equal(sourced_text[0].doc, np.zeros(text_source.binary_text.size))
         assert len(sourced_text[0].sources) == 1, len(sourced_text[0].sources)
         assert sourced_text[0].sources[0] is text_source
 
@@ -65,7 +65,8 @@ class TestSourcedText(unittest.TestCase):
         np.testing.assert_equal(
             sourced_text[0].pos, np.arange(transcript.binary_text.size)
         )
-        assert sourced_text[0].doc == 0, sourced_text[0].doc
+
+        np.testing.assert_equal( sourced_text[0].doc, np.zeros(transcript.binary_text.size))
         assert len(sourced_text[0].sources) == 1, len(sourced_text[0].sources)
         assert sourced_text[0].sources[0] is transcript
 
@@ -89,7 +90,7 @@ class TestSourcedText(unittest.TestCase):
         np.testing.assert_equal(
             sourced_text[0].pos, np.arange(transcript.binary_text.size)
         )
-        assert sourced_text[0].doc == 0, sourced_text[0].doc
+        np.testing.assert_equal(sourced_text[0].doc, np.zeros(transcript.binary_text.size))
         assert len(sourced_text[0].sources) == 1, len(sourced_text[0].sources)
         assert sourced_text[0].sources[0] is transcript
 

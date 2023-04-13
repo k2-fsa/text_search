@@ -83,7 +83,9 @@ class TestSuffixArray(unittest.TestCase):
         suffix_array = create_suffix_array(texts_array)
 
         query_len = len("".join(queries))
-        output = find_close_matches(suffix_array, query_len)
+        output = find_close_matches(
+            suffix_array, query_len, num_close_matches=1
+        ).flatten()
 
         # Take the first token of query as an example, it is 'h', first we
         # will find the element 0 in suffix_array, from the comment lines above,

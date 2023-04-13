@@ -49,8 +49,10 @@ static void PybindRowIdsToRowSplits(py::module &m) {
 
         int32_t num_elems = row_ids_buf.size;
         int32_t num_rows = row_splits_buf.size - 1;
-
-        RowIdsToRowSplits(num_elems, p_row_ids, num_rows, p_row_splits);
+        {
+          py::gil_scoped_release release;
+          RowIdsToRowSplits(num_elems, p_row_ids, num_rows, p_row_splits);
+        }
       },
       py::arg("row_ids"), py::arg("row_splits"), kRowIdsToRowSplitsDoc);
 }
@@ -63,7 +65,10 @@ static void PybindGetNew2Old(py::module &m) {
         size_t num_old_elems = keep_buf.size;
         const bool *p_keep = static_cast<const bool *>(keep_buf.ptr);
         std::vector<uint32_t> new2old;
-        GetNew2Old(p_keep, num_old_elems, &new2old);
+        {
+          py::gil_scoped_release release;
+          GetNew2Old(p_keep, num_old_elems, &new2old);
+        }
         return py::array(new2old.size(), new2old.data());
       },
       py::arg("keep"), kGetNew2OldDoc);
