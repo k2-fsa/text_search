@@ -18,39 +18,75 @@ import _fasttextsearch
 import numpy as np
 
 
-def create_suffix_array(input: np.ndarray) -> np.ndarray:
-    """
-    Creates a suffix array from the input text and returns it as a NumPy array.  Read
-    the usage carefully as it has some special requirements that will require careful data
-    preparation.
+def _renumbering(array: np.ndarray) -> np.ndarray:
+    """Renumber element in the input array such that the returned array
+    contains entries ranging from 0 to M - 1, where M equals
+    to number of unique entries in the input array.
+
+    The order of entries in the output array is the same as the order
+    of entries in the input array. That is, if array[i] < array[j], then
+    ans[i] < ans[j].
 
     Args:
-       input: an integer (or unsigned integer) type of np.ndarray.  Its shape
-          should be (seq_len + 3,) where `seq_len` is the text sequence length INCLUDING
-          EOS SYMBOL.
-          The EOS (end of sequence) symbol must be the second largest element of the
-          type (i.e. of the form 2^n - 2), must be located at input[seq_len - 1] and
-          must appear nowhere else in `input` (you may have to map the input
-          symbols somehow to achieve this).  It must be followed by 3 zeros, for reasons
-          related to how the algorithm works.
+      array:
+        A 1-D array.
     Returns:
-          Returns a suffix array of type np.int64,
-          of shape (seq_len,).  This will consist of some permutation of the elements
-          0 .. seq_len - 1.
+      Return a renumbered 1-D array.
     """
-    assert input.ndim == 1, input.ndim
-    seq_len = input.size - 3
-    assert seq_len >= 1, seq_len
-    max_symbol = input[seq_len - 1]
-    assert max_symbol == np.iinfo(input.dtype).max - 1, max_symbol
-    assert bool(input[seq_len:].any()) is False, input[seq_len:]
+    uniqued, inverse = np.unique(array, return_inverse=True)
+    # Note: uniqued[inverse] == array
+
+    indexes_sorted2unsorted = np.argsort(uniqued)
+    indexes_unsorted2sorted = np.empty((uniqued.size), dtype=np.int32)
+    indexes_unsorted2sorted[indexes_sorted2unsorted] = np.arange(uniqued.size)
+
+    return indexes_unsorted2sorted[inverse]
+
+
+def create_suffix_array(
+    array: np.ndarray,
+    enable_renumbering: bool = True,
+) -> np.ndarray:
+    """Create a suffix array from a 1-D input array.
+
+    hint:
+      Please refer to https://en.wikipedia.org/wiki/Suffix_array
+      for what suffix array is. Different from the above Wikipedia
+      article the special sentinel letter ``$`` in fasttextsearch
+      is known as EOS and it is larger than any other characters.
+
+    Args:
+      array:
+        A 1-D integer (or unsigned integer) array of shape (seq_len,).
+        Note: Inside this function, we will append explicitly an EOS
+        symbol that is larger than ``array.max()``.
+      enable_renumbering:
+        True to enable renumbering before computing the suffix array.
+    Returns:
+      Returns a suffix array of type np.int32, of shape (seq_len,).
+      This will consist of some permutation of the elements
+      ``0 .. seq_len - 1``.
+    """
+    assert array.ndim == 1, array.ndim
+
+    if enable_renumbering:
+        array = _renumbering(array)
+
+    max_symbol = array.max()
+    assert max_symbol < np.iinfo(array.dtype).max - 1, max_symbol
+    eos = max_symbol + 1
+    padding = np.array([eos, 0, 0, 0], dtype=array.dtype)
+
+    padded_array = np.concatenate([array, padding])
 
     # The C++ code requires the input array to be contiguous.
-    input64 = np.ascontiguousarray(input, dtype=np.int64)
-    return _fasttextsearch.create_suffix_array(input64)
+    array_int32 = np.ascontiguousarray(padded_array, dtype=np.int32)
+    return _fasttextsearch.create_suffix_array(array_int32)
 
 
-def find_close_matches(suffix_array: np.ndarray, query_len: int) -> np.ndarray:
+def find_close_matches(
+    suffix_array: np.ndarray, query_len: int, num_close_matches: int = 1
+) -> np.ndarray:
     """
     Assuming the suffix array was created from a text where the first `query_len`
     positions represent the query text and the remaining positions represent
@@ -67,7 +103,7 @@ def find_close_matches(suffix_array: np.ndarray, query_len: int) -> np.ndarray:
 
     Args:
      suffix_array: A suffix array as created by create_suffix_array(), of dtype
-        np.int64 and shape (seq_len,).
+        np.int32 and shape (seq_len,).
 
       query_len: A number 0 <= query_len < seq_len, indicating the length in symbols
        (likely bytes) of the query part of the text that was used to create `suffix_array`.
@@ -85,23 +121,31 @@ def find_close_matches(suffix_array: np.ndarray, query_len: int) -> np.ndarray:
     """
     assert query_len >= 0, query_len
     assert suffix_array.ndim == 1, suffix_array.ndim
-    assert suffix_array.dtype == np.int64, suffix_array.dtype
+    assert suffix_array.dtype == np.int32, suffix_array.dtype
     seq_len = suffix_array.size
     assert query_len < seq_len, (query_len, seq_len)
 
-    output = np.empty(query_len * 2, dtype=suffix_array.dtype)
+    output = np.ones((query_len, num_close_matches * 2), dtype=suffix_array.dtype)
 
-    last_pos = -1
-    for i in range(seq_len):
+    output *= seq_len - 2
+
+    prev_refs = [seq_len - 2] * num_close_matches
+    unfinished_q = {}
+
+    refs_index = 0
+    for i in range(seq_len - 1):
         text_pos = suffix_array[i]
         if text_pos >= query_len:
-            for j in range(last_pos + 1, i):
-                query_pos = suffix_array[j]
-                if query_pos < query_len:
-                    pre_ref_pos = (
-                        seq_len - 2 if last_pos == -1 else suffix_array[last_pos]
-                    )
-                    output[2 * query_pos] = pre_ref_pos
-                    output[2 * query_pos + 1] = text_pos
-            last_pos = i
+            prev_refs[refs_index % num_close_matches] = text_pos
+            refs_index += 1
+            for k in list(unfinished_q):
+                output[k][unfinished_q[k]] = text_pos
+                if unfinished_q[k] == num_close_matches * 2 - 1:
+                    del unfinished_q[k]
+                else:
+                    unfinished_q[k] += 1
+        else:
+            for i in range(num_close_matches):
+                output[text_pos][i] = prev_refs[i]
+            unfinished_q[text_pos] = num_close_matches
     return output

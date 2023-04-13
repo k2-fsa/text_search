@@ -207,8 +207,8 @@ struct LevenshteinElement {
 /*
  * AlignItem contains the start position and end position into the target
  * sequence and also the cost and the corresponding alignment info representing
- * as a string with 4 characters: 'I' (insertion), 'D' (Deletion), 'R'
- * (Replacement), 'E' (Equal)
+ * as a string with 4 characters: 'I' (Insertion), 'D' (Deletion), 'S'
+ * (Substitution), 'C' (Correct)
  */
 struct AlignItem {
   int64_t start;
@@ -334,9 +334,9 @@ int32_t LevenshteinDistance(const T *query, size_t query_length,
         oss << "D";
       } else if (backtrace[n] == '1' && backtrace[n - 1] == '0') {
         if (query[m] == target[j])
-          oss << "E"; // Equal
+          oss << "C"; // Correct
         else
-          oss << "R"; // Replacement error
+          oss << "S"; // Substitution error
         j -= 1;
         m -= 1;
         n -= 2;

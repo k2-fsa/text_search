@@ -29,11 +29,11 @@ from textsearch import create_suffix_array, find_close_matches
 class TestSuffixArray(unittest.TestCase):
     def test_create_suffix_array(self):
         for dtype in [np.uint8, np.int8, np.uint16, np.int16]:
-            array = np.array([3, 2, 1, np.iinfo(dtype).max - 1, 0, 0, 0], dtype=dtype)
+            array = np.array([3, 2, 1], dtype=dtype)
             suffix_array = create_suffix_array(array)
-            expected_array = np.array([2, 1, 0, 3], dtype=np.int64)
+            expected_array = np.array([2, 1, 0, 3], dtype=np.int32)
             self.assertTrue((suffix_array == expected_array).all())
-            self.assertTrue(suffix_array.dtype == np.int64)
+            self.assertTrue(suffix_array.dtype == np.int32)
 
     def test_find_close_matches(self):
         """
@@ -78,17 +78,14 @@ class TestSuffixArray(unittest.TestCase):
 
         # texts will be : "hellohalloiholloyouyouhellome"
         texts = "".join(queries) + "".join(documents)
-        texts_array = [ord(x) for x in texts] + [
-            np.iinfo(np.int8).max - 1,  # for ascii
-            0,
-            0,
-            0,
-        ]
+        texts_array = [ord(x) for x in texts]
         texts_array = np.array(texts_array, dtype=np.int8)
         suffix_array = create_suffix_array(texts_array)
 
         query_len = len("".join(queries))
-        output = find_close_matches(suffix_array, query_len)
+        output = find_close_matches(
+            suffix_array, query_len, num_close_matches=1
+        ).flatten()
 
         # Take the first token of query as an example, it is 'h', first we
         # will find the element 0 in suffix_array, from the comment lines above,
@@ -100,7 +97,7 @@ class TestSuffixArray(unittest.TestCase):
         expected_output = np.array(
             [28, 22, 28, 23, 10, 24, 13, 25, 27, 12, 28,
              22, 28, 23, 10, 24, 13, 25, 27, 12],
-            dtype=np.int64,
+            dtype=np.int32,
         )
         # fmt: on
         self.assertTrue((output == expected_output).all())
