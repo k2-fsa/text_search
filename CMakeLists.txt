@@ -36,6 +36,24 @@ option(FTS_ENABLE_TESTS "Whether to build tests" ON)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/Modules)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
+include(CheckCXXCompilerFlag)
+if(NOT WIN32)
+  check_cxx_compiler_flag("-std=c++14" FTS_COMPILER_SUPPORTS_CXX14)
+else()
+  # windows x86 or x86_64
+  check_cxx_compiler_flag("/std:c++14" FTS_COMPILER_SUPPORTS_CXX14)
+endif()
+if(NOT FTS_COMPILER_SUPPORTS_CXX14)
+  message(FATAL_ERROR "
+    Text search requires a compiler supporting at least C++14.
+    If you are using GCC, please upgrade it to at least version 7.0.
+    If you are using Clang, please upgrade it to at least version 3.4.")
+endif()
+
+set(CMAKE_CXX_STANDARD 14 CACHE STRING "The C++ version to be used.")
+set(CMAKE_CXX_EXTENSIONS OFF)
+message(STATUS "C++ Standard version: ${CMAKE_CXX_STANDARD}")
+
 include(pybind11)
 
 include_directories(${CMAKE_SOURCE_DIR})
