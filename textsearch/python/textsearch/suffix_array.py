@@ -36,16 +36,8 @@ def _renumbering(array: np.ndarray) -> np.ndarray:
     uniqued, inverse = np.unique(array, return_inverse=True)
     # Note: uniqued[inverse] == array
 
-    if uniqued.size < np.iinfo(np.uint8).max:
-        ans_dtype = np.uint8
-    elif uniqued.size < np.iinfo(np.uint32).max:
-        ans_dtype = np.uint32
-    else:
-        # unlikely
-        ans_dtype = np.int64
-
     indexes_sorted2unsorted = np.argsort(uniqued)
-    indexes_unsorted2sorted = np.empty((uniqued.size), dtype=ans_dtype)
+    indexes_unsorted2sorted = np.empty((uniqued.size), dtype=np.int32)
     indexes_unsorted2sorted[indexes_sorted2unsorted] = np.arange(uniqued.size)
 
     return indexes_unsorted2sorted[inverse]
@@ -71,7 +63,7 @@ def create_suffix_array(
       enable_renumbering:
         True to enable renumbering before computing the suffix array.
     Returns:
-      Returns a suffix array of type np.int64, of shape (seq_len,).
+      Returns a suffix array of type np.int32, of shape (seq_len,).
       This will consist of some permutation of the elements
       ``0 .. seq_len - 1``.
     """
@@ -88,8 +80,8 @@ def create_suffix_array(
     padded_array = np.concatenate([array, padding])
 
     # The C++ code requires the input array to be contiguous.
-    array_int64 = np.ascontiguousarray(padded_array, dtype=np.int64)
-    return _fasttextsearch.create_suffix_array(array_int64)
+    array_int32 = np.ascontiguousarray(padded_array, dtype=np.int32)
+    return _fasttextsearch.create_suffix_array(array_int32)
 
 
 def find_close_matches(suffix_array: np.ndarray, query_len: int) -> np.ndarray:
@@ -109,7 +101,7 @@ def find_close_matches(suffix_array: np.ndarray, query_len: int) -> np.ndarray:
 
     Args:
      suffix_array: A suffix array as created by create_suffix_array(), of dtype
-        np.int64 and shape (seq_len,).
+        np.int32 and shape (seq_len,).
 
       query_len: A number 0 <= query_len < seq_len, indicating the length in symbols
        (likely bytes) of the query part of the text that was used to create `suffix_array`.
@@ -127,7 +119,7 @@ def find_close_matches(suffix_array: np.ndarray, query_len: int) -> np.ndarray:
     """
     assert query_len >= 0, query_len
     assert suffix_array.ndim == 1, suffix_array.ndim
-    assert suffix_array.dtype == np.int64, suffix_array.dtype
+    assert suffix_array.dtype == np.int32, suffix_array.dtype
     seq_len = suffix_array.size
     assert query_len < seq_len, (query_len, seq_len)
 
