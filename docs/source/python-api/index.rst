@@ -1,7 +1,7 @@
 Python API
 ==========
 
-This section lists Python APIs in `fasttextsearch`.
+This section lists Python APIs in `fasttextsearch`_.
 
 .. currentmodule:: textsearch
 
