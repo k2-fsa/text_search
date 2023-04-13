@@ -78,6 +78,7 @@ void GetLongestIncreasingPairs(
       break;
     gm = sorted_pairs[gm.prev_n];
   }
+  std::reverse(best_trace->begin(), best_trace->end());
 }
 
 void GetLongestIncreasingPairsSimple(
@@ -127,6 +128,7 @@ void GetLongestIncreasingPairsSimple(
       break;
     gm = sorted_pairs[gm.prev_n];
   }
+  std::reverse(best_trace->begin(), best_trace->end());
 }
 
 } // namespace fasttextsearch

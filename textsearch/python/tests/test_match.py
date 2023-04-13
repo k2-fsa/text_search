@@ -31,7 +31,7 @@ class TestMatch(unittest.TestCase):
         for dtype in [np.int32, np.int64]:
             seq1 = np.array([0, 1, 1, 2, 2, 3, 4, 5, 6], dtype=dtype)
             seq2 = np.array([9, 7, 8, 9, 6, 7, 10, 12, 8], dtype=dtype)
-            expected = [(5, 12), (4, 10), (2, 9), (1, 8), (1, 7)]
+            expected = [(1, 7), (1, 8), (2, 9), (4, 10), (5, 12)]
             result = get_longest_increasing_pairs(seq1=seq1, seq2=seq2)
             for i, r in enumerate(result):
                 self.assertTrue(r == expected[i])

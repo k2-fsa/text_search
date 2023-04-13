@@ -43,7 +43,7 @@ def get_longest_increasing_pairs(
     >>> seq1 = np.array([0, 1, 1, 2, 2, 3, 4, 5, 6], dtype=np.int32)
     >>> seq2 = np.array([9, 7, 8, 9, 6, 7, 10, 12, 8], dtype=np.int64)
     >>> get_longest_increasing_pairs(seq1=seq1, seq2=seq2)
-    [(5, 12), (4, 10), (2, 9), (1, 8), (1, 7)]
+    [(1, 7), (1, 8), (2, 9), (4, 10), (5, 12)]
 
     """
     assert seq1.ndim == 1, seq1.ndim

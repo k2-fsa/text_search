@@ -37,7 +37,7 @@ TEST(GetLongestIncreasingPairs, TestBasic) {
   GetLongestIncreasingPairsSimple(seq1.data(), seq2.data(), seq1.size(),
                                   &best_trace_simple);
   std::vector<std::pair<int32_t, int32_t>> expected_trace(
-      {{5, 12}, {4, 10}, {2, 9}, {1, 8}, {1, 7}});
+      {{1, 7}, {1, 8}, {2, 9}, {4, 10}, {5, 12}});
   for (int32_t i = 0; i < best_trace.size(); ++i) {
     EXPECT_EQ(best_trace[i], expected_trace[i]);
     EXPECT_EQ(best_trace_simple[i], expected_trace[i]);
