@@ -10,3 +10,8 @@ create_suffix_array
 -------------------
 
 .. autofunction:: create_suffix_array
+
+find_close_matches
+------------------
+
+.. autofunction:: find_close_matches
