@@ -34,6 +34,8 @@ jobs:
       - name: Build doc
         shell: bash
         run: |
+          python3 -m pip install numpy
+
           mkdir build
           cd build
           cmake ..
