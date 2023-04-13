@@ -1,3 +1,5 @@
+.. _find_close_matches_tutorial:
+
 Find close matches
 ==================
 
@@ -16,13 +18,13 @@ We have the query string ``hi`` and the document string ``howareyou``.
 
 
 For the first character ``h`` from the query, we can see that the first
-substring preceding it from the document is ``eyou`` at position 7 in the
-``full_text`` and the first substring following it is ``howareyou`` at
+substring ``preceding`` it from the document is ``eyou`` at position 7 in the
+``full_text`` and the first substring ``following`` it is ``howareyou`` at
 position 2 in the ``full_text``, so the close match for ``h`` is ``(7, 2)``.
 
 Similarly, for the second character ``i`` from the query, we can see that the first
-substring preceding it from the document is ``howareyou`` at position 2 in the
-``full_text`` and the first substring following it is ``ou`` at
+substring ``preceding`` it from the document is ``howareyou`` at position 2 in the
+``full_text`` and the first substring ``following`` it is ``ou`` at
 position 9 in the ``full_text``, so the close match for ``h`` is ``(2, 9)``.
 
 

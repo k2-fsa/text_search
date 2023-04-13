@@ -15,3 +15,13 @@ find_close_matches
 ------------------
 
 .. autofunction:: find_close_matches
+
+levenshtein_distance
+--------------------
+
+.. autofunction:: levenshtein_distance
+
+get_nice_alignments
+-------------------
+
+.. autofunction:: get_nice_alignments

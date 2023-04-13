@@ -129,6 +129,10 @@ def find_close_matches(
       before any reference position in the suffix aray, we output
       ``seq_len - 2`` instead to avoid having to handle special cases later on
       (anyway, these would not represent a close match).
+
+    .. hint::
+
+        Please refer to :ref:`find_close_matches_tutorial` for usages.
     """
     assert query_len >= 0, query_len
     assert suffix_array.ndim == 1, suffix_array.ndim
