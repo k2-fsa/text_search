@@ -20,6 +20,7 @@ if(FTS_ENABLE_TESTS)
   set(test_srcs
     test_get_new2old.py
     test_levenshtein_distance.py
+    test_match.py
     test_row_ids_to_row_splits.py
     test_sourced_text.py
     test_suffix_array.py
