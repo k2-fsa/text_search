@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Dict, List, Set, Tuple, Union
 from multiprocessing.pool import Pool
 
-from lhotse import MonoCut, CutSet, load_manifest_lazy
+from lhotse import CutSet, MonoCut, SupervisionSegment, load_manifest_lazy
 from lhotse.serialization import SequentialJsonlWriter
 from textsearch import (
     AttributeDict,
@@ -91,9 +91,13 @@ def is_overlap(ranges: List[Tuple[int, int]], query: Tuple[int, int]) -> bool:
     Caution:
       `ranges` will be modified in this function (when returning False)
 
+    Note: overlapping here means the length of overlapping area is greater than
+    some threshold (currently, the threshold is the half of the shorter range length).
+
     Args:
       ranges:
-        The existing ranges.
+        The existing ranges, it is sorted in ascending order on input, and it will be
+        kept sorted in this function.
       query:
         The given range.
 
@@ -104,11 +108,26 @@ def is_overlap(ranges: List[Tuple[int, int]], query: Tuple[int, int]) -> bool:
     index = bisect_left(ranges, query)
     if index == 0:
         if ranges:
-            is_overlap = query[1] > ranges[0][0]
+            is_overlap = (
+                query[1] - ranges[0][0]
+                > min(ranges[0][1] - ranges[0][0], query[1] - query[0]) // 2
+            )
+            # is_overlap = query[1] > ranges[0][0]
     elif index == len(ranges):
-        is_overlap = query[0] < ranges[index - 1][1]
+        is_overlap = (
+            ranges[index - 1][1] - query[0]
+            > min(ranges[index - 1][1] - ranges[index - 1][0], query[1] - query[0]) // 2
+        )
+        # is_overlap = query[0] < ranges[index - 1][1]
     else:
-        is_overlap = query[0] < ranges[index - 1][1] or query[1] > ranges[index][0]
+        is_overlap = (
+            ranges[index - 1][1] - query[0]
+            > min(ranges[index - 1][1] - ranges[index - 1][0], query[1] - query[0]) // 2
+        ) or (
+            query[1] - ranges[index][0]
+            > min(ranges[index][1] - ranges[index][0], query[1] - query[0]) // 2
+        )
+        # is_overlap = query[0] < ranges[index - 1][1] or query[1] > ranges[index][0]
 
     if not is_overlap:
         ranges.insert(index, query)
@@ -269,6 +288,7 @@ def get_segment_candidates(
     def is_end_punc(c):
         return c in PUNCTUATION_END
 
+    selected_index = 0
     for i, align in enumerate(aligns):
         matched = align["ref"] == align["hyp"]
         cumsum_match[i] = (
@@ -278,18 +298,6 @@ def get_segment_candidates(
             int(not matched) if i == 0 else (cumsum_error[i - 1] + int(not matched))
         )
 
-        # silence
-        prev_silence = (
-            max_silence if i == 0 else (align["hyp_time"] - aligns[i - 1]["hyp_time"])
-        )
-        prev_silence = max_silence if prev_silence > max_silence else prev_silence
-        post_silence = (
-            max_silence
-            if i == len(aligns) - 1
-            else (aligns[i + 1]["hyp_time"] - align["hyp_time"])
-        )
-        post_silence = max_silence if post_silence > max_silence else post_silence
-
         # erros in regin
         if i - half_regin_size >= 0:
             if aligns[i - half_regin_size]["ref"] != aligns[i - half_regin_size]["hyp"]:
@@ -298,57 +306,84 @@ def get_segment_candidates(
             if aligns[i + half_regin_size]["ref"] != aligns[i + half_regin_size]["hyp"]:
                 errors_in_regin += 1
 
-        # white space
-        prev_space = space_score if i == 0 or aligns[i - 1]["ref"] == " " else 0
-        post_space = (
-            space_score if i == len(aligns) - 1 or aligns[i + 1]["ref"] == " " else 0
-        )
-
-        # punctuation
-        prev_punctuation = 0
-        j = align["ref_pos"] - 1
-        while j >= 0:
-            if target_source.binary_text[j] == ord(" "):
-                j -= 1
-            elif is_end_punc(target_source.binary_text[j]):
-                prev_punctuation = punctuation_score
-                break
-            else:
-                break
-
-        post_punctuation = 0
-        j = align["ref_pos"] + 1
-        while j < target_source.binary_text.size:
-            if target_source.binary_text[j] == ord(" "):
-                j += 1
-            elif is_end_punc(target_source.binary_text[j]):
-                post_punctuation = punctuation_score
-                break
-            else:
-                break
-        begin_scores.append(
-            (
-                i,
-                prev_silence
-                + prev_space
-                + prev_punctuation
-                - 2 * errors_in_regin / half_regin_size,
+        # if (
+        # is_end_punc(target_source.binary_text[align["ref_pos"]])
+        # or target_source.binary_text[align["ref_pos"]] == " "
+        # ):
+        if align["ref"] == " ":
+            # silence
+            prev_silence = (
+                max_silence
+                if i == 0
+                else (align["hyp_time"] - aligns[i - 1]["hyp_time"])
             )
-        )
-        end_scores.append(
-            (
-                i,
-                post_silence
-                + post_space
-                + post_punctuation
-                - 2 * errors_in_regin / half_regin_size,
+            prev_silence = max_silence if prev_silence > max_silence else prev_silence
+            post_silence = (
+                max_silence
+                if i == len(aligns) - 1
+                else (aligns[i + 1]["hyp_time"] - align["hyp_time"])
             )
-        )
+            post_silence = max_silence if post_silence > max_silence else post_silence
 
-    sorted_begin_scores = sorted(begin_scores, key=lambda x: x[1], reverse=True)
-    sorted_end_scores = sorted(end_scores, key=lambda x: x[1], reverse=True)
+            # white space
+            prev_space = space_score if i == 0 or aligns[i - 1]["ref"] == " " else 0
+            post_space = (
+                space_score
+                if i == len(aligns) - 1 or aligns[i + 1]["ref"] == " "
+                else 0
+            )
 
-    top_ratio = 0.1
+            # punctuation
+            prev_punctuation = 0
+            j = align["ref_pos"] - 1
+            while j >= 0:
+                if target_source.binary_text[j] == ord(" "):
+                    j -= 1
+                elif is_end_punc(target_source.binary_text[j]):
+                    prev_punctuation = punctuation_score
+                    break
+                else:
+                    break
+
+            post_punctuation = 0
+            j = align["ref_pos"] + 1
+            while j < target_source.binary_text.size:
+                if target_source.binary_text[j] == ord(" "):
+                    j += 1
+                elif is_end_punc(target_source.binary_text[j]):
+                    post_punctuation = punctuation_score
+                    break
+                else:
+                    break
+            begin_scores.append(
+                (
+                    selected_index,
+                    i,
+                    prev_silence
+                    + prev_space
+                    + prev_punctuation
+                    - 2 * errors_in_regin / half_regin_size,
+                )
+            )
+            end_scores.append(
+                (
+                    selected_index,
+                    i,
+                    post_silence
+                    + post_space
+                    + post_punctuation
+                    - 2 * errors_in_regin / half_regin_size,
+                )
+            )
+            selected_index += 1
+
+    # logging.info(f"begin_scores : {begin_scores}")
+    # logging.info(f"end_scores : {end_scores}")
+
+    sorted_begin_scores = sorted(begin_scores, key=lambda x: x[2], reverse=True)
+    sorted_end_scores = sorted(end_scores, key=lambda x: x[2], reverse=True)
+
+    top_ratio = 1
     top_begin = sorted_begin_scores[0 : int(len(begin_scores) * top_ratio)]
     top_end = sorted_end_scores[0 : int(len(end_scores) * top_ratio)]
 
@@ -356,33 +391,41 @@ def get_segment_candidates(
     begin_list: List[Tuple[int, int, float]] = []
     end_list: List[Tuple[int, int, float]] = []
 
-    num_of_best_position = 4
-    duration_score = 5  # duration_score for segment between 5 ~ 20 seconds
+    num_of_best_position = 8
     max_errors_ratio = 0.25
     max_text_length = 2000
+    init_duration_score = 5  # duration_score for segment between 5 ~ 20 seconds
 
     for item in top_begin:
         # Caution: Can only be modified with heappush and heappop, it is used as
         # the container of a heap.
         item_q = []
         ind = item[0] + 1
-        while ind < min(len(end_scores), item[0] + max_text_length):
-            score = begin_scores[item[0]][1] + end_scores[ind][1]
+        while ind < len(end_scores) and end_scores[ind][1] - item[1] < max_text_length:
+            score = begin_scores[item[0]][2] + end_scores[ind][2]
             # matching scores
-            score += 3 * (cumsum_match[ind] - cumsum_match[item[0]]) / (ind - item[0])
+            score += (
+                3
+                * (cumsum_match[end_scores[ind][1]] - cumsum_match[item[1]])
+                / (end_scores[ind][1] - item[1])
+            )
 
             # errors penalties
-            total_errors = cumsum_error[ind] - cumsum_error[item[0]]
+            total_errors = cumsum_error[end_scores[ind][1]] - cumsum_error[item[1]]
             # skipping segment with too much matching errors.
-            if total_errors >= (ind - item[0]) * max_errors_ratio:
+            if total_errors >= (end_scores[ind][1] - item[1]) * max_errors_ratio:
                 ind += 1
                 continue
-            score -= 3 * (total_errors) / (ind - item[0])
+            score -= 3 * (total_errors) / (end_scores[ind][1] - item[1])
 
             # duration scores
-            duration = aligns[ind]["hyp_time"] - aligns[item[0]]["hyp_time"]
+            duration = (
+                aligns[end_scores[ind][1]]["hyp_time"] - aligns[item[1]]["hyp_time"]
+            )
             duration_score = (
-                float("-inf") if duration >= 30 or duration <= 2 else duration_score
+                float("-inf")
+                if duration >= 30 or duration <= 2
+                else init_duration_score
             )
             duration_score = (
                 duration_score - (duration - 2)
@@ -395,36 +438,45 @@ def get_segment_candidates(
                 else duration_score
             )
 
-            heappush(item_q, (score + duration_score, (item[0], ind)))
+            heappush(item_q, (score + duration_score, (item[1], end_scores[ind][1])))
             if len(item_q) > num_of_best_position:
                 heappop(item_q)
             ind += 1
         while item_q:
             x = heappop(item_q)
-            begin_list.append((x[1][0], x[1][1], x[0]))
+            if x[0] != float("-inf"):
+                begin_list.append((x[1][0], x[1][1], x[0]))
 
     for item in top_end:
         # Caution: Can only be modified with heappush and heappop, it is used as
         # the container of a heap.
         item_q = []
         ind = item[0] - 1
-        while ind >= max(0, item[0] - max_text_length):
-            score = begin_scores[ind][1] + end_scores[item[0]][1]
+        while ind >= 0 and item[1] - begin_scores[ind][1] < max_text_length:
+            score = begin_scores[ind][2] + end_scores[item[0]][2]
             # matching scores
-            score += 3 * (cumsum_match[item[0]] - cumsum_match[ind]) / (item[0] - ind)
+            score += (
+                3
+                * (cumsum_match[item[1]] - cumsum_match[begin_scores[ind][1]])
+                / (item[1] - begin_scores[ind][1])
+            )
 
             # errors penalties
-            total_errors = cumsum_error[ind] - cumsum_error[item[0]]
+            total_errors = cumsum_error[begin_scores[ind][1]] - cumsum_error[item[1]]
             # skipping segment with too much matching errors.
-            if total_errors >= (ind - item[0]) * max_errors_ratio:
+            if total_errors >= (begin_scores[ind][1] - item[1]) * max_errors_ratio:
                 ind -= 1
                 continue
-            score -= 3 * (total_errors) / (item[0] - ind)
+            score -= 3 * (total_errors) / (item[1] - begin_scores[ind][1])
 
             # duration scores
-            duration = aligns[item[0]]["hyp_time"] - aligns[ind]["hyp_time"]
+            duration = (
+                aligns[item[1]]["hyp_time"] - aligns[begin_scores[ind][1]]["hyp_time"]
+            )
             duration_score = (
-                float("-inf") if duration >= 30 or duration <= 2 else duration_score
+                float("-inf")
+                if duration >= 30 or duration <= 2
+                else init_duration_score
             )
             duration_score = (
                 duration_score - (duration - 2)
@@ -437,13 +489,14 @@ def get_segment_candidates(
                 else duration_score
             )
 
-            heappush(item_q, (score + duration_score, (ind, item[0])))
+            heappush(item_q, (score + duration_score, (begin_scores[ind][1], item[1])))
             if len(item_q) > num_of_best_position:
                 heappop(item_q)
             ind -= 1
         while item_q:
             x = heappop(item_q)
-            end_list.append((x[1][0], x[1][1], x[0]))
+            if x[0] != float("-inf"):
+                end_list.append((x[1][0], x[1][1], x[0]))
 
     candidates = begin_list + end_list
     return candidates
@@ -683,10 +736,12 @@ def process_one_batch(
             continue
         for j, sup in enumerate(cut.supervisions):
             # Transcript requires the input to be the dict like this.
-            aligns = {"text": [], "begin_times": []}
+            text_list = []
+            begin_times_list = []
             for ali in sup.alignment["symbol"]:
-                aligns["text"].append(ali.symbol)
-                aligns["begin_times"].append(ali.start)
+                text_list.append(ali.symbol)
+                begin_times_list.append(ali.start)
+            aligns = {"text": text_list, "begin_times": begin_times_list}
             # alignments in a supervision might be empty
             if aligns["text"]:
                 transcript = Transcript.from_dict(
@@ -702,13 +757,14 @@ def process_one_batch(
 
     # Construct references (the books)
     for i, book_path in enumerate(book_paths):
-        book_text = open(params.book_dir / book_path, "r").read()
-        book = TextSource.from_str(
-            name=book_path,
-            s=book_text,
-            use_utf8=params.use_utf8,
-        )
-        books.append(book)
+        with open(params.book_dir / book_path, "r") as f:
+            book_text = f.read()
+            book = TextSource.from_str(
+                name=book_path,
+                s=book_text,
+                use_utf8=params.use_utf8,
+            )
+            books.append(book)
 
     logging.info("Loading data done.")
 
@@ -772,9 +828,8 @@ def process_one_batch(
         async_results = pool.starmap_async(align_worker, arguments)
         results = async_results.get()
 
-        logging.info("Splitting into segments.")
         cut_segment_index: Dict[str, int] = {}
-        segment_list = []
+        cut_list = []
         for item in results:
             cut_indexes = item[0]
             segments = item[1]
@@ -786,16 +841,35 @@ def process_one_batch(
             for seg in segments:
                 id = f"{current_cut.id}_{cut_segment_index[current_cut.id]}"
                 cut_segment_index[current_cut.id] += 1
-                audio = current_cut.recording.to_dict()
-                text_file = str(params.book_dir / current_cut.text_path)
-                seg["id"] = id
-                seg["audio"] = audio
-                seg["text_file"] = text_file
-                segment_list.append(seg)
+                supervision = SupervisionSegment(
+                    id=id,
+                    channel=current_cut.supervisions[cut_indexes[1]].channel,
+                    language=current_cut.supervisions[cut_indexes[1]].language,
+                    speaker=current_cut.supervisions[cut_indexes[1]].speaker,
+                    recording_id=current_cut.recording.id,
+                    start=seg["start_time"],
+                    duration=seg["duration"],
+                    custom={
+                        "texts": [seg["ref"], seg["hyp"]],
+                        "pre_texts": [seg["pre_ref"], seg["pre_hyp"]],
+                        "begin_byte": seg["begin_byte"],
+                        "end_byte": seg["end_byte"],
+                    },
+                )
+                cut = MonoCut(
+                    id,
+                    start=seg["start_time"],
+                    duration=seg["duration"],
+                    channel=current_cut.channel,
+                    supervisions=[supervision],
+                    recording=current_cut.recording,
+                    custom={"text_path": str(params.book_dir / current_cut.text_path)},
+                )
+                cut_list.append(cut)
 
         logging.info(f"Writing results.")
-        for segment in segment_list:
-            cuts_writer.write(segment, flush=True)
+        for cut in cut_list:
+            cuts_writer.write(cut, flush=True)
         logging.info(f"Write results done.")
 
 
