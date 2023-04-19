@@ -14,8 +14,10 @@ from .levenshtein import get_nice_alignments
 from .match import get_alignments
 from .match import get_longest_increasing_pairs
 from .match import find_candidate_matches
+from .match import split_into_segments
 
 from .suffix_array import create_suffix_array
 from .suffix_array import find_close_matches
 
+from .utils import is_punctuation
 from .utils import row_ids_to_row_splits

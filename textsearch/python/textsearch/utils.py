@@ -1,4 +1,5 @@
 import numpy as np
+from typing import List, Tuple
 from _fasttextsearch import row_ids_to_row_splits as _row_ids_to_row_splits
 
 
@@ -20,3 +21,71 @@ def row_ids_to_row_splits(row_ids: np.ndarray) -> np.ndarray:
 
     _row_ids_to_row_splits(row_ids, row_splits)
     return row_splits
+
+
+def is_overlap(
+    ranges: List[Tuple[int, int]], query: Tuple[int, int], overlap_ratio: float = 0.5
+) -> bool:
+    """
+    Return if the given range overlaps with the existing ranges.
+
+    Caution:
+      `ranges` will be modified in this function (when returning False)
+
+    Note: overlapping here means the length of overlapping area is greater than
+    some threshold (currently, the threshold is `overlap_ratio` multiply the length
+    of the shorter overlapping ranges).
+
+    Args:
+      ranges:
+        The existing ranges, it is sorted in ascending order on input, and we will
+        keep it sorted in this function.
+      query:
+        The given range.
+
+    Return:
+      Return True if having overlap otherwise False.
+    """
+    is_overlap = False
+    index = bisect_left(ranges, query)
+    if index == 0:
+        if ranges:
+            is_overlap = (
+                query[1] - ranges[0][0]
+                > min(ranges[0][1] - ranges[0][0], query[1] - query[0]) * overlap_ratio
+            )
+    elif index == len(ranges):
+        is_overlap = (
+            ranges[index - 1][1] - query[0]
+            > min(ranges[index - 1][1] - ranges[index - 1][0], query[1] - query[0])
+            * overlap_ratio
+        )
+    else:
+        is_overlap = (
+            ranges[index - 1][1] - query[0]
+            > min(ranges[index - 1][1] - ranges[index - 1][0], query[1] - query[0])
+            * overlap_ratio
+        ) or (
+            query[1] - ranges[index][0]
+            > min(ranges[index][1] - ranges[index][0], query[1] - query[0])
+            * overlap_ratio
+        )
+
+    if not is_overlap:
+        ranges.insert(index, query)
+    return is_overlap
+
+
+def is_punctuation(c: str, eos_only: bool = False) -> bool:
+    """
+    Return True if the given character is a punctuation.
+
+    Args:
+      c:
+        The given character.
+      eos_only:
+        If True the punctuations are only those indicating end of a sentence (.?! for now).
+    """
+    if eos_only:
+        return c in ".?!"
+    return c in ',.;?!():-<>-/"'
