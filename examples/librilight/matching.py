@@ -72,7 +72,7 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
-            "num_close_matches": 1,
+            "num_close_matches": 3,
             "num_candidates": 1,
             "match_length_ratio": 1.0,
             "use_utf8": False,
@@ -96,8 +96,8 @@ def is_overlap(ranges: List[Tuple[int, int]], query: Tuple[int, int]) -> bool:
 
     Args:
       ranges:
-        The existing ranges, it is sorted in ascending order on input, and it will be
-        kept sorted in this function.
+        The existing ranges, it is sorted in ascending order on input, and we will
+        keep it sorted in this function.
       query:
         The given range.
 
@@ -164,7 +164,7 @@ def get_aligns(
     q_index = 0
     t_index = target_start
     for i, t in enumerate(alignments):
-        hyp_time = float(query_source.times[q_index])
+        hyp_time = float(query_source.times[q_index * 4])
         if t == "I":
             aligns.append(
                 {
@@ -279,9 +279,9 @@ def get_segment_candidates(
 
     max_silence = 4  # seconds
     space_score = 3  # score for preceding(begin) and following(end) space
-    punctuation_score = 5  # score for preceding (begin) and following(end) punctuation
+    punctuation_score = 8  # score for preceding (begin) and following(end) punctuation
 
-    # Use cumsum to get matched and errors in a range efficiently
+    # Use cumsum to get number of matches and errors in a range efficiently
     cumsum_match = [0] * len(aligns)
     cumsum_error = [0] * len(aligns)
 
@@ -306,11 +306,8 @@ def get_segment_candidates(
             if aligns[i + half_regin_size]["ref"] != aligns[i + half_regin_size]["hyp"]:
                 errors_in_regin += 1
 
-        # if (
-        # is_end_punc(target_source.binary_text[align["ref_pos"]])
-        # or target_source.binary_text[align["ref_pos"]] == " "
-        # ):
-        if align["ref"] == " ":
+        # only split at space position
+        if align["ref"] == " " and align["hyp"] == " ":
             # silence
             prev_silence = (
                 max_silence
@@ -383,7 +380,7 @@ def get_segment_candidates(
     sorted_begin_scores = sorted(begin_scores, key=lambda x: x[2], reverse=True)
     sorted_end_scores = sorted(end_scores, key=lambda x: x[2], reverse=True)
 
-    top_ratio = 1
+    top_ratio = 0.5
     top_begin = sorted_begin_scores[0 : int(len(begin_scores) * top_ratio)]
     top_end = sorted_end_scores[0 : int(len(end_scores) * top_ratio)]
 
