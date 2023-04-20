@@ -39,6 +39,11 @@ void RowIdsToRowSplits(int32_t num_elems, const uint32_t *row_ids,
  */
 void GetNew2Old(const bool *keep, uint32_t num_old_elems,
                 std::vector<uint32_t> *new2old);
+
+void FindCloseMatches(const int32_t *suffix_array, int32_t seq_len,
+                      int32_t query_len, int32_t num_close_matches,
+                      int32_t *close_matches);
+
 } // namespace fasttextsearch
 
 #endif // TEXTSEARCH_CSRC_UTILS_H_

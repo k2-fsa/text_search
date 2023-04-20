@@ -4,6 +4,7 @@
 
 #include "textsearch/python/csrc/utils.h"
 #include "textsearch/csrc/utils.h"
+#include <cassert>
 
 namespace fasttextsearch {
 
@@ -74,7 +75,34 @@ static void PybindGetNew2Old(py::module &m) {
       py::arg("keep"), kGetNew2OldDoc);
 }
 
+static void PybindFindCloseMatches(py::module &m) {
+  m.def(
+      "find_close_matches",
+      [](py::array_t<int32_t> suffix_array, int32_t query_len,
+         int32_t num_close_matches) -> py::array_t<int32_t> {
+        assert(num_close_matches > 0 && num_close_matches % 2 == 0);
+        py::buffer_info suffix_buf = suffix_array.request();
+        int32_t seq_len = suffix_buf.size;
+        assert(query_len < seq_len);
+        const int32_t *p_suffix = static_cast<const int32_t *>(suffix_buf.ptr);
+        auto close_matches =
+            py::array_t<int32_t>(query_len * num_close_matches);
+        py::buffer_info matches_buf = close_matches.request();
+        int32_t *p_matches = static_cast<int32_t *>(matches_buf.ptr);
+        {
+          py::gil_scoped_release release;
+          FindCloseMatches(p_suffix, seq_len, query_len, num_close_matches,
+                           p_matches);
+        }
+        close_matches = close_matches.reshape({query_len, num_close_matches});
+        return close_matches;
+      },
+      py::arg("suffix_array"), py::arg("query_len"),
+      py::arg("num_close_matches"));
+}
+
 void PybindUtils(py::module &m) {
+  PybindFindCloseMatches(m);
   PybindGetNew2Old(m);
   PybindRowIdsToRowSplits(m);
 }

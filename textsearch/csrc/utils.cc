@@ -3,6 +3,7 @@
 // Copyright (c)  2023  Xiaomi Corporation
 #include "textsearch/csrc/utils.h"
 #include <assert.h>
+#include <map>
 #include <vector>
 
 namespace fasttextsearch {
@@ -53,6 +54,71 @@ void GetNew2Old(const bool *keep, uint32_t num_old_elems,
       (*new2old)[old2new[i]] = i;
   }
   new2old->resize(num_new_elems);
+}
+
+//    assert query_len >= 0, query_len
+//    assert suffix_array.ndim == 1, suffix_array.ndim
+//    assert suffix_array.dtype == np.int32, suffix_array.dtype
+//    seq_len = suffix_array.size
+//    assert query_len < seq_len, (query_len, seq_len)
+//
+//    output = np.ones((query_len, num_close_matches * 2),
+//    dtype=suffix_array.dtype)
+//
+//    output *= seq_len - 2
+//
+//    prev_refs = [seq_len - 2] * num_close_matches
+//    unfinished_q = {}
+//
+//    refs_index = 0
+//    for i in range(seq_len - 1):
+//        text_pos = suffix_array[i]
+//        if text_pos >= query_len:
+//            prev_refs[refs_index % num_close_matches] = text_pos
+//            refs_index += 1
+//            for k in list(unfinished_q):
+//                output[k][unfinished_q[k]] = text_pos
+//                if unfinished_q[k] == num_close_matches * 2 - 1:
+//                    del unfinished_q[k]
+//                else:
+//                    unfinished_q[k] += 1
+//        else:
+//            for i in range(num_close_matches):
+//                output[text_pos][i] = prev_refs[i]
+//            unfinished_q[text_pos] = num_close_matches
+//    return output
+
+void FindCloseMatches(const int32_t *suffix_array, int32_t seq_len,
+                      int32_t query_len, int32_t num_close_matches,
+                      int32_t *close_matches) {
+  assert(num_close_matches > 0 && num_close_matches % 2 == 0);
+  for (int32_t i = 0; i < query_len * num_close_matches; ++i)
+    close_matches[i] = seq_len - 2;
+  int32_t half_num_close_matches = num_close_matches / 2;
+  auto prev_refs = std::vector<int32_t>(half_num_close_matches, seq_len - 2);
+  auto unfinished_q = std::map<int32_t, int32_t>();
+  int32_t refs_index = 0;
+  for (int32_t i = 0; i < seq_len - 1; ++i) {
+    int32_t text_pos = suffix_array[i];
+    if (text_pos >= query_len) {
+      prev_refs[refs_index % half_num_close_matches] = text_pos;
+      refs_index += 1;
+      for (auto it = unfinished_q.begin(); it != unfinished_q.end();) {
+        close_matches[it->first * num_close_matches + it->second] = text_pos;
+        if (it->second == num_close_matches - 1) {
+          it = unfinished_q.erase(it);
+        } else {
+          it->second += 1;
+          ++it;
+        }
+      }
+    } else {
+      for (int32_t j = 0; j < half_num_close_matches; ++j) {
+        close_matches[text_pos * num_close_matches + j] = prev_refs[j];
+      }
+      unfinished_q[text_pos] = half_num_close_matches;
+    }
+  }
 }
 
 } // namespace fasttextsearch

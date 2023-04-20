@@ -83,7 +83,7 @@ class TestSuffixArray(unittest.TestCase):
 
         query_len = len("".join(queries))
         output = find_close_matches(
-            suffix_array, query_len, num_close_matches=1
+            suffix_array, query_len, num_close_matches=2
         ).flatten()
 
         # Take the first token of query as an example, it is 'h', first we
