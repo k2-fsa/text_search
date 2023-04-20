@@ -1,5 +1,6 @@
-import numpy as np
+from bisect import bisect_left
 from typing import List, Tuple
+import numpy as np
 from _fasttextsearch import row_ids_to_row_splits as _row_ids_to_row_splits
 
 

@@ -15,12 +15,11 @@
 # limitations under the License.
 
 import logging
-import os
 from bisect import bisect_left
 from dataclasses import dataclass
 from heapq import heappush, heappop
 from multiprocessing.pool import ThreadPool
-from typing import Any, Dict, List, Tuple, Set, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -31,8 +30,6 @@ from _fasttextsearch import (
 from .suffix_array import create_suffix_array
 from .datatypes import SourcedText, Transcript
 from .utils import is_overlap, is_punctuation, row_ids_to_row_splits
-
-PUNCTUATION_END = set([ord(i) for i in ".!?"])
 
 
 def get_longest_increasing_pairs(
@@ -58,7 +55,6 @@ def get_longest_increasing_pairs(
     >>> seq2 = np.array([9, 7, 8, 9, 6, 7, 10, 12, 8], dtype=np.int64)
     >>> get_longest_increasing_pairs(seq1=seq1, seq2=seq2)
     [(1, 7), (1, 8), (2, 9), (4, 10), (5, 12)]
-
     """
     assert seq1.ndim == 1, seq1.ndim
     assert seq2.ndim == 1, seq2.ndim
@@ -71,60 +67,91 @@ def get_longest_increasing_pairs(
     return _get_longest_increasing_pairs(seq1_int32, seq2_int32)
 
 
-def _break_trace(
+def _break_query(
     sourced_text: SourcedText,
-    trace: List[Tuple[int, int]],
-    max_segment_length: int = 5000,
-    length_ratio: float = 1.1,
+    matched_points: List[Tuple[int, int]],
+    segment_length: int = 5000,
+    reference_length_difference: float = 0.1,
 ) -> List[Tuple[int, int, int, int]]:
-    prev_break_point = 0  # index in trace
-    candidate_segments: List[Tuple[int, int]] = []  # start, end index in trace
-    for i in range(1, len(trace)):
-        # The query and reference distance between current trace and preceding
-        # trance.
-        gap = trace[i][0] - trace[i - 1][0], trace[i][1] - trace[i - 1][1]
+    """
+    Break long query into small segments at the matched points with the `segment_length`
+    constraint.
+
+    Args:
+      sourced_text:
+        The SourcedText containing the queries and references.
+      matched_points:
+        A list of matched points, each item is a pair of (query index, target index)
+        in sourced_text.
+      segment_length:
+        The expected length of the segmented piece. Note: this is not really the
+        length of the segments, the segment length might be a little longer
+        than `segment_length`, like `segment_length` * 1.25
+      reference_length_difference:
+        Because of the insertion or deletion errors, the reference sequence might be
+        shorter or longer than the query, so the reference segment length can be from
+        `len(query) * (1 - reference_length_difference / 2)` to
+        `len(query) * (1 + reference_length_difference / 2)`.
+    """
+    # Firstly we will find the longest range that satisfies
+    # 1 - reference_length_difference / 2 <= len(reference) / len(query)
+    # <= 1 + reference_length_difference / 2
+    prev_break_point = 0  # index in matched_points
+    candidate_ranges: List[Tuple[int, int]] = []  # start, end indexes in matched_points
+    for i in range(1, len(matched_points)):
+        # The query and reference distance between current matched_point and preceding
+        # matched_point.
+        gap = (
+            matched_points[i][0] - matched_points[i - 1][0],
+            matched_points[i][1] - matched_points[i - 1][1],
+        )
         if gap[0] < gap[1]:
             # +1 for smoothing (avoid div zero error)
-            ratio = (trace[i][1] - trace[prev_break_point][1] + 1) / (
-                trace[i][0] - trace[prev_break_point][0] + 1
+            ratio = (matched_points[i][1] - matched_points[prev_break_point][1] + 1) / (
+                matched_points[i][0] - matched_points[prev_break_point][0] + 1
             )
-            # break on current trace
-            half = (length_ratio - 1) / 2
+            # break on current matched_point, we will finally choose the longest
+            # segment.
+            half = reference_length_difference / 2
             if ratio < 1 - half or ratio > 1 + half:
-                candidate_segments.append((prev_break_point, i))
+                candidate_ranges.append((prev_break_point, i))
                 prev_break_point = i
 
-    candidate_segments.append((prev_break_point, len(trace)))
-    # Find the longest query sequence
+    candidate_ranges.append((prev_break_point, len(matched_points)))
+
+    # Find the range containing the longest query sequence
+    # max_item contains the matched points we choose : matched_points[max_item[0], max_item[1]]
     max_length = -1
-    max_item = (0, len(trace))
-    for c in candidate_segments:
-        segment_length = trace[c[1] - 1][0] - trace[c[0]][0]
-        if segment_length > max_length:
-            max_length = segment_length
+    max_item = (0, len(matched_points))
+    for c in candidate_ranges:
+        current_length = matched_points[c[1] - 1][0] - matched_points[c[0]][0]
+        if current_length > max_length:
+            max_length = current_length
             max_item = c
 
-    # start, end index in query and reference
-    # [(start_query, end_query, start_reference, end_reference)]
+    # start, end indexes of query and reference in sourced_text
+    # [(query_start, query_end, target_start, target_end)]
     segments: List[Tuple[int, int, int, int]] = []
 
     def add_segments(
-        query_start, query_end, target_start, target_end, max_segment_length, segments
+        query_start, query_end, target_start, target_end, segment_length, segments
     ):
-        num_chunk = (query_end - query_start) // max_segment_length
+        num_chunk = (query_end - query_start) // segment_length
         if num_chunk > 0:
             for i in range(num_chunk):
                 segments.append(
                     (
                         query_start,
-                        query_start + max_segment_length,
+                        query_start + segment_length,
                         target_start,
-                        target_start + max_segment_length,
+                        target_start + segment_length,
                     )
                 )
-                query_start += max_segment_length
-                target_start += max_segment_length
-        if segments and query_end - query_start < max_segment_length // 4:
+                query_start += segment_length
+                target_start += segment_length
+        # if the remaining part is smaller than segment_length // 4, we will append
+        # it to the last segment rather than creating a new segment.
+        if segments and query_end - query_start < segment_length // 4:
             segments[-1] = (
                 segments[-1][0],
                 query_end,
@@ -134,32 +161,39 @@ def _break_trace(
         else:
             segments.append((query_start, query_end, target_start, target_end))
 
-    target_doc_id = sourced_text.doc[trace[max_item[0]][1]]
+    target_doc_id = sourced_text.doc[matched_points[max_item[0]][1]]
     target_base = sourced_text.doc_splits[target_doc_id]
     next_target_base = sourced_text.doc_splits[target_doc_id + 1]
 
-    query_doc_id = sourced_text.doc[trace[max_item[0]][0]]
+    query_doc_id = sourced_text.doc[matched_points[max_item[0]][0]]
     query_base = sourced_text.doc_splits[query_doc_id]
     next_query_base = sourced_text.doc_splits[query_doc_id + 1]
 
-    prev_target = trace[max_item[0]][1] - (trace[max_item[0]][0] - query_base)
-    # index in query and reference
+    # indexes of query and reference in sourced_text
+    # Guarantee the target index is in the same reference document
+    prev_target = matched_points[max_item[0]][1] - (
+        matched_points[max_item[0]][0] - query_base
+    )
     prev_break_point = (
         query_base,
         prev_target if prev_target >= target_base else target_base,
     )
+
+    # Break the chosen matched_points into smaller segment, we might need to
+    # extend on both side, as the first and last chosen points are sometimes
+    # not the real start point and end point of query.
     for ind in range(max_item[0], max_item[1]):
-        if trace[ind][0] - prev_break_point[0] > max_segment_length:
+        if matched_points[ind][0] - prev_break_point[0] > segment_length:
             if ind == max_item[0]:
                 continue
             else:
                 query_start = prev_break_point[0]
-                query_end = trace[ind - 1][0]
+                query_end = matched_points[ind - 1][0]
                 target_start = prev_break_point[1]
-                target_end = trace[ind - 1][1]
+                target_end = matched_points[ind - 1][1]
 
                 ratio = (target_end - target_start) / (query_end - query_start)
-                half = (length_ratio - 1) / 2
+                half = reference_length_difference / 2
                 if ratio < 1 - half or ratio > 1 + half:
                     continue
 
@@ -169,7 +203,7 @@ def _break_trace(
                     query_end,
                     target_start,
                     target_end,
-                    max_segment_length,
+                    segment_length,
                     segments,
                 )
 
@@ -179,7 +213,7 @@ def _break_trace(
     target_end = target_start + (query_end - query_start)
     target_end = target_end if target_end <= next_target_base else next_target_base
 
-    if query_end - query_start < max_segment_length // 4:
+    if query_end - query_start < segment_length // 4:
         if segments:
             segments[-1] = (
                 segments[-1][0],
@@ -202,7 +236,7 @@ def _break_trace(
             query_end,
             target_start,
             target_end,
-            max_segment_length,
+            segment_length,
             segments,
         )
     return segments
@@ -211,14 +245,38 @@ def _break_trace(
 def _combine_sub_alignments(
     sourced_text: SourcedText, sub_alignments: List[Dict[str, Any]], num_queries: int
 ) -> List[Tuple[Tuple[int, int], List[Dict[str, Any]]]]:
-    # combining the alignments together
+    """
+    Combine the segments broken by `_break_query` together to get a long query.
+
+    Note: The segments here contain the levenshtein alignment.
+
+    Args:
+      sourced_text:
+        The SourcedText containing the queries and references.
+      sub_alignments:
+        A list of segments, each item (returned by levenshtein_worker) contains
+        the segment it belongs to and the levenshtein alignment.
+      num_queries:
+        The number of queries, this argument is for efficiency, if we know number
+        of queries we can preallocate the list.
+    Returns:
+      Return a list of tuple containing ((query_start, target_start), [alignment item]).
+      The `query_start` and `target_start` are indexes in sourced_text, the `alignment item`
+      is a list containing {"ref": ref, "hyp": hyp, "ref_pos": ref_pos, "hyp_pos": hyp_pos,
+      "hyp_time": hyp_time}, ref is the token from reference, hyp is the token from query,
+      ref_pos is local index in reference document, hyp_pos is local index in query document,
+      hyp_time is the timestamp of hyp.
+    """
+    # The container to store the returning results.
     alignments = [None] * num_queries
     prev_target_end = 0
     for sub in sub_alignments:
-        # for the global mode of levenshtein, there is only one alignment
         if sub["alignment"][0] == -1:
             logging.warning(f"Skipping empty sub segment.")
             continue
+        # for the global mode of levenshtein, there is only one alignment
+        # See docs in `levenshtein_distance` for the meaning of target_align_start,
+        # target_align_end and align_str
         target_align_start, target_align_end, align_str = sub["alignment"][1][0]
         query_start, query_end, target_start, target_end = sub["segment"]
         query_id = sourced_text.doc[query_start]
@@ -228,13 +286,17 @@ def _combine_sub_alignments(
                 (query_start, target_start + target_align_start),
                 [],
             )
+
         query_doc_id = sourced_text.doc[query_start]
         query_base = sourced_text.doc_splits[query_doc_id]
         query_source = sourced_text.sources[query_doc_id]
 
         # aligns : [{"ref": , "hyp": , "ref_pos": , "hyp_pos": , "hyp_time":}]
         aligns = alignments[query_id][1]
+        # Note: query_source could be TextSource or Transcript, only Transcript
+        # has times.
         times = query_source.times if isinstance(query_source, Transcript) else None
+        # The times is in byte level.
         time_stride = 1 if query_source.binary_text.dtype == np.uint8 else 4
 
         query_local_index = query_start - query_base
@@ -276,8 +338,8 @@ def _combine_sub_alignments(
                 assert ali == "C" or ali == "S"
                 ref = chr(sourced_text.binary_text[target_index])
                 hyp = chr(sourced_text.binary_text[query_index])
-                # The following two asserts guarantee the levenshtein alignment
-                # is correct. So DO NOT delete it.
+                # The following two asserts guarantee the correctness of
+                # levenshtein alignment. So DO NOT delete it.
                 if ali == "C":
                     assert ref == hyp
                 else:
@@ -301,85 +363,132 @@ def get_alignments(
     sourced_text: SourcedText,
     close_matches: np.ndarray,
     segment_length: int = 5000,
-    target_length_ratio: float = 1.1,
-    num_threads: int = -1,
-) -> List[Tuple[int, int, str]]:
+    reference_length_difference: float = 0.1,
+    thread_pool: Optional[ThreadPool] = None,
+) -> List[Tuple[Tuple[int, int], List[Dict[str, Any]]]]:
     """
-    Get levenshtein alignment for each query document.
+    Get levenshtein alignment for each query document in sourced_text.
+
+    For each query document we will locate its corresponding segment in the reference
+    document and return the levenshtein alignment between the query and its corresponding
+    reference segment.
+
+    Args:
+      sourced_text:
+        The SourcedText containing the queries and references, the first N (we can
+        get it from close_matches) documents are queries and the others are references.
+      close_matches:
+        Generated from sourced_text with the function `find_candidate_matches`.
+        It contains the close matched reference token for each query token.
+      segment_length:
+        The query length might be long, in order to accelerate the levenshtein
+        algorithm we will split the long query into smaller segments, `segment_length`
+        is the expected length of the smaller segments.
+      reference_length_difference:
+        Because of the insertion or deletion errors, the reference sequence might be
+        shorter or longer than the query, so the reference segment length can be from
+        `len(query) * (1 - reference_length_difference / 2)` to
+        `len(query) * (1 + reference_length_difference / 2)`.
+      thread_pool:
+        The ThreadPool to run levenshtein.
+    Returns:
+      Return a list of tuple containing ((query_start, target_start), [alignment item]).
+      The `query_start` and `target_start` are indexes in sourced_text, the `alignment item`
+      is a list containing {"ref": ref, "hyp": hyp, "ref_pos": ref_pos, "hyp_pos": hyp_pos,
+      "hyp_time": hyp_time}, ref is the token from reference, hyp is the token from query,
+      ref_pos is local index in reference document, hyp_pos is local index in query document,
+      hyp_time is the timestamp of hyp.
     """
     tot_query_symbols, num_close_matches = close_matches.shape
     num_queries = sourced_text.doc[tot_query_symbols]
 
     row_splits = sourced_text.doc_splits
 
-    logging.info("Getting matching trace.")
+    logging.info("Getting matching points.")
     arguments = []
     for q in range(num_queries):
         query_start = row_splits[q]
         query_end = row_splits[q + 1]
         query_len = row_splits[q + 1] - row_splits[q]
 
+        # seq1 contains the query index in sourced_text.
+        # seq2 contains the reference index in sourced_text.
         seq1 = np.arange(query_start, query_end).reshape(-1, 1)
         seq1 = np.tile(seq1, num_close_matches).flatten()
 
         seq2 = close_matches[query_start:query_end, :].flatten()
-        trace = get_longest_increasing_pairs(seq1, seq2)
+        # matched_points is a list of (query index, target index), global index in sourced_text
+        matched_points = get_longest_increasing_pairs(seq1, seq2)
 
         # In the algorithm of `find_close_matches`, `sourced_text.binary_text.size - 1`
         # means no close_matches
-        trim_pos = len(trace) - 1
-        while trace[trim_pos][1] == sourced_text.binary_text.size - 1:
+        trim_pos = len(matched_points) - 1
+        while matched_points[trim_pos][1] == sourced_text.binary_text.size - 1:
             trim_pos -= 1
-        trace = trace[0:trim_pos]
+        matched_points = matched_points[0:trim_pos]
 
-        doc_ids = sourced_text.doc[np.array([x[1] for x in trace])]
+        # The following code guarantees the matched points are in the same reference
+        # document. We will choose the reference document that matches the most number
+        # of query tokens.
+        doc_ids = sourced_text.doc[np.array([x[1] for x in matched_points])]
+        # we don't really care about the real doc id, we just want to know the
+        # index in matched_points, minus doc_ids[0] here for efficiency.
         doc_ids = doc_ids - doc_ids[0]
         doc_splits = row_ids_to_row_splits(doc_ids)
         max_num_matches = -1
-        max_ranges = (0, len(trace))
+        max_ranges = (0, len(matched_points))
         for i in range(doc_splits.size - 1):
             if doc_splits[i + 1] - doc_splits[i] < 2:
                 continue
-            num_matches = trace[doc_splits[i + 1] - 1][0] - trace[doc_splits[i]][0]
+            num_matches = (
+                matched_points[doc_splits[i + 1] - 1][0]
+                - matched_points[doc_splits[i]][0]
+            )
             if num_matches > max_num_matches:
                 max_num_matches = num_matches
                 max_ranges = (doc_splits[i], doc_splits[i + 1])
 
         if max_num_matches < 0.5 * query_len:
             logging.warning(
-                f"Skipping query, less than half of query matched by close_matches."
+                f"Skipping query {q}, less than half of query matched by close_matches."
             )
             continue
 
-        trace = trace[max_ranges[0] : max_ranges[1]]
+        matched_points = matched_points[max_ranges[0] : max_ranges[1]]
 
-        segments = _break_trace(
-            sourced_text, trace, segment_length, target_length_ratio
+        # segments is a list of (query_start, query_end, target_start, target_end)
+        # they are the indexes in sourced_text.
+        segments = _break_query(
+            sourced_text=sourced_text,
+            matched_points=matched_points,
+            segment_length=segment_length,
+            reference_length_difference=reference_length_difference,
         )
 
-        for i, seg in enumerate(segments):
+        # prepare arguments list for levenshtein_worker
+        for seg in segments:
             arguments.append((sourced_text, seg))
-    logging.info("Getting matching trace done.")
+
+    logging.info("Getting matching points done.")
 
     def levenshtein_worker(sourced_text, segment):
         query = sourced_text.binary_text[segment[0] : segment[1]]
         target = sourced_text.binary_text[segment[2] : segment[3]]
-        alignment = levenshtein_distance(query=query, target=target, model="global")
+        # Using global matching mode here, thanks to `get_longest_increasing_pairs`
+        # we have very good matching points.
+        alignment = levenshtein_distance(query=query, target=target, mode="global")
         return {
             "segment": segment,
             "alignment": alignment,
         }
 
-    real_num_threads = (
-        min(len(arguments), os.cpu_count()) if num_threads <= 0 else num_threads
-    )
-    with ThreadPool(real_num_threads) as pool:
-        logging.info("Matching with levenshtein.")
-        async_results = pool.starmap_async(levenshtein_worker, arguments)
-        results = async_results.get()
-        logging.info("Matching with levenshtein done.")
+    pool = ThreadPool() if thread_pool is None else thread_pool
+    logging.info("Matching with levenshtein.")
+    async_results = pool.starmap_async(levenshtein_worker, arguments)
+    results = async_results.get()
+    logging.info("Matching with levenshtein done.")
 
-        return _combine_sub_alignments(sourced_text, results, num_queries)
+    return _combine_sub_alignments(sourced_text, results, num_queries)
 
 
 def _get_segment_candidates(
@@ -679,7 +788,7 @@ def split_into_segments(
     sourced_text: SourcedText, alignment
 ) -> List[Dict[str, Union[str, int, float]]]:
     """
-    Split a long sequence into smaller segments.
+    Split a long aligned query into smaller segments.
 
     We will create scores for each position in the alignment, corresponding to how good
     a position it is to begin or end a split. We can then create a rule to assign scores
@@ -690,6 +799,7 @@ def split_into_segments(
       sourced_text:
         The sourced_text containing queries and references.
       alignment:
+        The alignment return by `get_alignments`.
     """
     (query_start, target_start), aligns = alignment
 
