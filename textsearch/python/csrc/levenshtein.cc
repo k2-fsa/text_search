@@ -30,10 +30,10 @@ Calculate the levenshtein distance between query and target sequence.
 
 Args:
   query:
-    The query sequence, it is a one dimension numpy ndarray, only np.int32 is
+    The query sequence; it is a 1-D numpy ndarray, only ``np.int32`` is
     supported now.
   target:
-    The target sequence, it is a one dimension numpy ndarray with same dtype as
+    The target sequence, it is a 1-D numpy ndarray with same dtype as
     query sequence.
   mode:
     It can be either "global" or "infix", when it equals "global", we are doing
@@ -62,7 +62,7 @@ Returns:
 >>> query = np.array([1, 2, 3, 4], dtype=np.int32)
 >>> target = np.array([1, 5, 3, 4, 6, 7, 1, 2, 4], dtype=np.int32)
 >>> distance, alignments = levenshtein_distance(query, target)
->>> print (distance, alignments)
+>>> print(distance, alignments)
 1 [(0, 3, 'CSCC'), (6, 8, 'CCIC')]
 
 The result above indicates that there are two segments in target sequence having
@@ -78,6 +78,11 @@ insertion, `D` means deletion, `S` means substitution, `C` means correct.
 >>> distance, alignments = levenshtein_distance(query, target, model="global")
 >>> print (distance, alignments)
 6 [(0, 8, 'CSCDDDDDC')]
+
+.. hint::
+
+   Please refer to :func:`textsearch.get_nice_alignments` for how to visualize
+   the alignments.
 )doc";
 
 template <typename T>

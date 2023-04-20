@@ -26,7 +26,7 @@ def get_nice_alignments(
 
     Args:
       alignments:
-        The alignments information returned by the `levenshtein_distance`.
+        The alignments information returned by the :func:`levenshtein_distance`.
       query:
         The query sequence.
       target:
@@ -36,15 +36,28 @@ def get_nice_alignments(
       Return a list of alignment string, it has the same length as alignments.
       See the following example for more details, the first line of the alignment
       is query, the second line is the error types, the third line is the target
-      segment. '*' means empty, '+' means insertion, '-' means deletion, '#' means
-      replacement, '|' means equal.
+      segment. The following symbols are used to represent the error types:
+
+        - ``*``: empty
+        - ``+``: insertion
+        - ``-``: deletion
+        - ``#``: replacement
+        - ``|``: equal.
+
+    **Example 1/2**
 
     >>> from textsearch import get_nice_alignments, levenshtein_distance
     >>> import numpy as np
     >>> query = np.array([1, 2, 3, 4], dtype=np.int32)
     >>> target = np.array([1, 5, 3, 4, 6, 7, 1, 2, 4], dtype=np.int32)
     >>> distance, alignments = levenshtein_distance(query, target)
-    >>> aligns = get_nice_alignments(alignments, a, b)
+    >>> distance
+    1
+    >>> alignments
+    [(0, 3, 'CSCC'), (6, 8, 'CCIC')]
+    >>> aligns = get_nice_alignments(alignments, query, target)
+    >>> repr(aligns)
+    "['1 2 3 4 \\n| # | | \\n1 5 3 4 ', '1 2 3 4 \\n| | + | \\n1 2 * 4 ']"
     >>> print (aligns[0])
     1 2 3 4
     | # | |
@@ -53,6 +66,10 @@ def get_nice_alignments(
     1 2 3 4
     | | + |
     1 2 * 4
+
+    **Example 2/2**
+
+        .. literalinclude:: ./code/edit-distance.py
     """
     results = []
     for align in alignments:
