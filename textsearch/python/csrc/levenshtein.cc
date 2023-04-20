@@ -28,13 +28,6 @@ namespace fasttextsearch {
 static constexpr const char *kLevenshteinDistanceDoc = R"doc(
 Calculate the levenshtein distance between query and target sequence.
 
-Note:
-  We are doing the infix search, gaps at query end and start are not
-  penalized. What that means is that deleting elements from the start and end
-  of target is "free"! For example, if we had ACT and CGACTGAC, the levenshtein
-  distance would be 0, because removing CG from the start and GAC from the end
-  of target is "free" and does not count into total levenshtein distance.
-
 Args:
   query:
     The query sequence, it is a one dimension numpy ndarray, only np.int32 is
@@ -42,6 +35,15 @@ Args:
   target:
     The target sequence, it is a one dimension numpy ndarray with same dtype as
     query sequence.
+  mode:
+    It can be either "global" or "infix", when it equals "global", we are doing
+    the normal levenshtein distance, when it equals "infix", it means we are
+    doing the infix search, gaps at query end and start are not penalized. What
+    that means is that deleting elements from the start and end of target is
+    "free"! For example, if we had ACT and CGACTGAC, the levenshtein distance
+    would be 0, because removing CG from the start and GAC from the end
+    of target is "free" and does not count into total levenshtein distance.
+    Default: infix.
   insert_cost:
     The cost of insertion error, default 1.
   delete_cost:
@@ -68,6 +70,14 @@ the same levenshtein distance with query sequence. The levenshtein distance is 1
 the end index of first segment into target sequence is 3 ([1,5,3,4]), and the
 end index of second sequence is 8 ([1,2,4]). For the align string, `I` means
 insertion, `D` means deletion, `S` means substitution, `C` means correct.
+
+>>> from textsearch import levenshtein_distance
+>>> import numpy as np
+>>> query = np.array([1, 2, 3, 4], dtype=np.int32)
+>>> target = np.array([1, 5, 3, 4, 6, 7, 1, 2, 4], dtype=np.int32)
+>>> distance, alignments = levenshtein_distance(query, target, model="global")
+>>> print (distance, alignments)
+6 [(0, 8, 'CSCDDDDDC')]
 )doc";
 
 template <typename T>
@@ -75,8 +85,8 @@ static std::pair<int32_t,
                  std::vector<std::tuple<int64_t, int64_t, std::string>>>
 PybindLevenshteinHelper(py::array_t<T, py::array::c_style> &query,
                         py::array_t<T, py::array::c_style> &target,
-                        int32_t insert_cost, int32_t delete_cost,
-                        int32_t replace_cost) {
+                        std::string &mode, int32_t insert_cost,
+                        int32_t delete_cost, int32_t replace_cost) {
   if (query.ndim() != 1)
     throw std::runtime_error("Query MUST be a one dimension array");
 
@@ -89,9 +99,9 @@ PybindLevenshteinHelper(py::array_t<T, py::array::c_style> &query,
   py::gil_scoped_release release;
 
   std::vector<AlignItem> alignments;
-  int32_t distance =
-      LevenshteinDistance(query_data, query.size(), target_data, target.size(),
-                          &alignments, insert_cost, delete_cost, replace_cost);
+  int32_t distance = LevenshteinDistance(
+      query_data, query.size(), target_data, target.size(), &alignments, mode,
+      insert_cost, delete_cost, replace_cost);
 
   std::vector<std::tuple<int64_t, int64_t, std::string>> trace;
   trace.reserve(alignments.size());
@@ -105,8 +115,8 @@ PybindLevenshteinHelper(py::array_t<T, py::array::c_style> &query,
 
 void PybindLevenshtein(py::module &m) {
   m.def("levenshtein_distance", &PybindLevenshteinHelper<int32_t>,
-        py::arg("query"), py::arg("target"), py::arg("insert_cost") = 1,
-        py::arg("delete_cost") = 1, py::arg("replace_cost") = 1,
-        kLevenshteinDistanceDoc);
+        py::arg("query"), py::arg("target"), py::arg("mode") = "infix",
+        py::arg("insert_cost") = 1, py::arg("delete_cost") = 1,
+        py::arg("replace_cost") = 1, kLevenshteinDistanceDoc);
 }
 } // namespace fasttextsearch
