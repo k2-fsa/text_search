@@ -29,37 +29,6 @@
 
 namespace fasttextsearch {
 
-TEST(GetNew2Old, TestBasic) {
-  std::vector<int8_t> keep({0, 1, 1, 0, 0, 1, 1, 1, 0});
-  std::vector<uint32_t> expected_new2old({1, 2, 5, 6, 7});
-  std::vector<uint32_t> new2old;
-  GetNew2Old(keep.data(), keep.size(), &new2old);
-  EXPECT_EQ(new2old.size(), expected_new2old.size());
-  for (int32_t i = 0; i < new2old.size(); ++i) {
-    EXPECT_EQ(new2old[i], expected_new2old[i]);
-  }
-}
-
-TEST(GetNew2Old, TestRandom) {
-  std::srand(std::time(0)); // use current time as seed for random generator
-  int32_t old_elems_num = std::rand() % 1000 + 1000;
-  std::vector<uint32_t> expected_new2old;
-  std::vector<int8_t> keep;
-  for (int32_t i = 0; i < old_elems_num; ++i) {
-    bool k = std::rand() % 2;
-    keep.push_back(k);
-    if (k) {
-      expected_new2old.push_back(i);
-    }
-  }
-  std::vector<uint32_t> new2old;
-  GetNew2Old(keep.data(), keep.size(), &new2old);
-  EXPECT_EQ(new2old.size(), expected_new2old.size());
-  for (int32_t i = 0; i < new2old.size(); ++i) {
-    EXPECT_EQ(new2old[i], expected_new2old[i]);
-  }
-}
-
 TEST(RowIdsToRowSplits, TestBasic) {
   std::vector<uint32_t> row_ids({0, 0, 1, 1, 1, 3, 3, 5});
   std::vector<uint32_t> expected_row_splits({0, 2, 5, 5, 7, 7, 8});

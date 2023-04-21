@@ -26,20 +26,6 @@ namespace fasttextsearch {
 void RowIdsToRowSplits(int32_t num_elems, const uint32_t *row_ids,
                        int32_t num_rows, uint32_t *row_splits);
 
-/** This function is copied/modified from
- * https://github.com/k2-fsa/k2/blob/master/k2/csrc/algorithms.h
- *
- * @param [in] keep  keep array of length num_old_elems indicating whether to
- *                   keep current element, nonzero to keep, zero to drop.
- * @param [in] num_old_elems  The number of elements of keep vector.
- *
- * @param [out] new2old  An array mapping the new indexes to the old indexes.
- *                       Its dimension is the number of new indexes
- *                       (i.e. the number of true in keep)
- */
-void GetNew2Old(const int8_t *keep, uint32_t num_old_elems,
-                std::vector<uint32_t> *new2old);
-
 /**
  * Assuming the suffix array was created from a text where the first
  * ``query_len`` positions represent the query text and the remaining positions

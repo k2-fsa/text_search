@@ -19,7 +19,6 @@ endfunction()
 if(FTS_ENABLE_TESTS)
   set(test_srcs
     test_find_close_matches.py
-    test_get_new2old.py
     test_levenshtein_distance.py
     test_row_ids_to_row_splits.py
     test_sourced_text.py

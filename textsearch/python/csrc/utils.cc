@@ -19,22 +19,6 @@ Args:
     On return it will contain the computed row splits.
 )doc";
 
-static constexpr const char *kGetNew2OldDoc = R"doc(
-Returns an array mapping the new indexes to the old indexes.
-Its dimension is the number of new indexes (i.e. the number of True in keep).
-
-Args:
-  keep:
-    A 1-D contiguous array of dtype np.int8 indicating whether to keep current
-    element (nonzero to keep, zero to drop).
-
->>> from textsearch import get_new2old
->>> import numpy as np
->>> keep = np.array([0, 0, 1, 0, 1, 0, 1, 1], dtype=np.int8)
->>> get_new2old(keep)
-array([2, 4, 6, 7], dtype=uint32)
-)doc";
-
 static constexpr const char *kFindCloseMatchesDoc = R"doc(
 Assuming the suffix array was created from a text where the first
 ``query_len`` positions represent the query text and the remaining positions
@@ -56,6 +40,8 @@ Args:
    A number ``0 <= query_len < seq_len``, indicating the length in symbols
    (likely bytes) of the query part of the text that was used to create
    ``suffix_array``.
+ num_close_matches:
+   The number of close_matches for each query element.
 
 Returns:
   Return an np.ndarray of shape ``(query_len, num_close_matches,)``, of the
@@ -97,23 +83,6 @@ static void PybindRowIdsToRowSplits(py::module &m) {
         }
       },
       py::arg("row_ids"), py::arg("row_splits"), kRowIdsToRowSplitsDoc);
-}
-
-static void PybindGetNew2Old(py::module &m) {
-  m.def(
-      "get_new2old",
-      [](py::array_t<int8_t> keep) -> py::array_t<uint32_t> {
-        py::buffer_info keep_buf = keep.request();
-        size_t num_old_elems = keep_buf.size;
-        const int8_t *p_keep = static_cast<const int8_t *>(keep_buf.ptr);
-        std::vector<uint32_t> new2old;
-        {
-          py::gil_scoped_release release;
-          GetNew2Old(p_keep, num_old_elems, &new2old);
-        }
-        return py::array(new2old.size(), new2old.data());
-      },
-      py::arg("keep"), kGetNew2OldDoc);
 }
 
 static void PybindFindCloseMatches(py::module &m) {
