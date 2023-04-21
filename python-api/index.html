@@ -95,7 +95,7 @@ is known as EOS and it is larger than any other characters.</p>
 </div>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>array</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code>) – <p>A 1-D integer (or unsigned integer) array of shape <code class="docutils literal notranslate"><span class="pre">(seq_len,)</span></code>.</p>
+<dd class="field-odd"><p><strong>array</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code>) – <p>A 1-D integer (or unsigned integer) array of shape <code class="docutils literal notranslate"><span class="pre">(seq_len</span> <span class="pre">-</span> <span class="pre">1,)</span></code>.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Inside this function, we will append explicitly an EOS
@@ -151,38 +151,34 @@ This will consist of some permutation of the elements
 <h2>find_close_matches<a class="headerlink" href="#find-close-matches" title="Permalink to this headline"></a></h2>
 <dl class="py function">
 <dt class="sig sig-object py" id="textsearch.find_close_matches">
-<span class="sig-prename descclassname"><span class="pre">textsearch.</span></span><span class="sig-name descname"><span class="pre">find_close_matches</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">suffix_array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">query_len</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_close_matches</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/danpovey/text_search/blob/master/textsearch/python/textsearch/suffix_array.py#L92-L175"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#textsearch.find_close_matches" title="Permalink to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">textsearch.</span></span><span class="sig-name descname"><span class="pre">find_close_matches</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">suffix_array</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.int32</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">query_len</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_close_matches</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">2</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.int32</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#textsearch.find_close_matches" title="Permalink to this definition"></a></dt>
 <dd><p>Assuming the suffix array was created from a text where the first
 <code class="docutils literal notranslate"><span class="pre">query_len</span></code> positions represent the query text and the remaining positions
 represent the reference text, return a list indicating, for each suffix
-position in the query text, the two suffix positions in the reference text
-that immediately precede and follow it lexicographically.  (I think suffix
-position refers to the last character of a suffix).</p>
-<p>This is easy to do from the suffix array without computing, for example,
-the LCP array; and it produces exactly 2 matches per position in the query
-text, which is also convenient.</p>
+position in the query text, the <code class="docutils literal notranslate"><span class="pre">num_close_matches</span></code> suffix positions in the
+reference text that immediately precede and follow it lexicographically.
+(I think suffix position refers to the last character of a suffix).</p>
 <p>(Note: the query and reference texts could each represent multiple separate
 sequences, but that is handled by other code; class SourcedText keeps track
 of that information.)</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>suffix_array</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code>) – A suffix array as created by <a class="reference internal" href="#textsearch.create_suffix_array" title="textsearch.create_suffix_array"><code class="xref py py-func docutils literal notranslate"><span class="pre">create_suffix_array()</span></code></a>, of dtype
+<li><p><strong>suffix_array</strong> – A suffix array as created by <a class="reference internal" href="#textsearch.create_suffix_array" title="textsearch.create_suffix_array"><code class="xref py py-func docutils literal notranslate"><span class="pre">create_suffix_array()</span></code></a>, of dtype
 <code class="docutils literal notranslate"><span class="pre">np.int32</span></code> and shape <code class="docutils literal notranslate"><span class="pre">(seq_len,)</span></code>.</p></li>
-<li><p><strong>query_len</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code>) – A number <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">&lt;=</span> <span class="pre">query_len</span> <span class="pre">&lt;</span> <span class="pre">seq_len</span></code>, indicating the length in symbols
+<li><p><strong>query_len</strong> – A number <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">&lt;=</span> <span class="pre">query_len</span> <span class="pre">&lt;</span> <span class="pre">seq_len</span></code>, indicating the length in symbols
 (likely bytes) of the query part of the text that was used to create
 <code class="docutils literal notranslate"><span class="pre">suffix_array</span></code>.</p></li>
+<li><p><strong>num_close_matches</strong> – The number of close_matches for each query element.</p></li>
 </ul>
 </dd>
-<dt class="field-even">Return type</dt>
-<dd class="field-even"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code></p>
-</dd>
-<dt class="field-odd">Returns</dt>
-<dd class="field-odd"><p>Return an np.ndarray of shape <code class="docutils literal notranslate"><span class="pre">(query_len</span> <span class="pre">*</span> <span class="pre">2,)</span></code>, of the same dtype as
-<code class="docutils literal notranslate"><span class="pre">suffix_array</span></code>, in which positions <code class="docutils literal notranslate"><span class="pre">2*i</span></code> and <code class="docutils literal notranslate"><span class="pre">2*i</span> <span class="pre">+</span> <span class="pre">1</span></code> represent
-the two positions in the original text that are within the reference
-portion, and which immediately precede and follow, in the suffix array,
-query position <code class="docutils literal notranslate"><span class="pre">i</span></code>.  This means that the suffixes ending at those
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Return an np.ndarray of shape <code class="docutils literal notranslate"><span class="pre">(query_len,</span> <span class="pre">num_close_matches,)</span></code>, of the
+same dtype as <code class="docutils literal notranslate"><span class="pre">suffix_array</span></code>, in which positions
+<code class="docutils literal notranslate"><span class="pre">(i,</span> <span class="pre">0),</span> <span class="pre">(i,</span> <span class="pre">1),...</span> <span class="pre">(i,</span> <span class="pre">num_close_matches</span> <span class="pre">-</span> <span class="pre">1)</span></code> represent
+the num_close_matches positions in the original text that are within the
+reference portion, and which immediately precede and follow, in the suffix
+array, query position <code class="docutils literal notranslate"><span class="pre">i</span></code>.  This means that the suffixes ending at those
 positions are reverse-lexicographically close to the suffix ending at
 position <code class="docutils literal notranslate"><span class="pre">i</span></code>.  As a special case, if one of these returned numbers would
 equal the EOS position (position seq_len - 1), or if a query position is
@@ -195,6 +191,7 @@ before any reference position in the suffix aray, we output
 <p class="admonition-title">Hint</p>
 <p>Please refer to <a class="reference internal" href="../tutorials/find-close-matches.html#find-close-matches-tutorial"><span class="std std-ref">Find close matches</span></a> for usages.</p>
 </div>
+<p>“””</p>
 </dd></dl>
 
 </section>
