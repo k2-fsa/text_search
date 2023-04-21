@@ -54,7 +54,7 @@ def create_suffix_array(array: np.ndarray) -> np.ndarray:
 
     Args:
       array:
-        A 1-D integer (or unsigned integer) array of shape ``(seq_len,)``.
+        A 1-D integer (or unsigned integer) array of shape ``(seq_len - 1,)``.
 
         Note:
           Inside this function, we will append explicitly an EOS

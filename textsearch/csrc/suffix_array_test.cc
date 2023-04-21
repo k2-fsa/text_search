@@ -104,4 +104,5 @@ TEST(SuffixArrayTest, TestBasic) {
     }
   }
 }
+
 } // namespace fasttextsearch
