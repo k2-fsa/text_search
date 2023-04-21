@@ -36,6 +36,52 @@ array([2, 4, 6, 7], dtype=uint32)
 
 )doc";
 
+static constexpr const char *kFindCloseMatchesDoc = R"doc(
+Assuming the suffix array was created from a text where the first
+``query_len`` positions represent the query text and the remaining positions
+represent the reference text, return a list indicating, for each suffix
+position in the query text, the ``num_close_matches`` suffix positions in the
+reference text that immediately precede and follow it lexicographically.
+(I think suffix position refers to the last character of a suffix).
+
+This is easy to do from the suffix array without computing, for example,
+the LCP array; and it produces exactly ``num_close_matches`` matches per
+position in the query text, which is also convenient.
+
+(Note: the query and reference texts could each represent multiple separate
+sequences, but that is handled by other code; class SourcedText keeps track
+of that information.)
+
+Args:
+ suffix_array:
+   A suffix array as created by :func:`create_suffix_array`, of dtype
+   ``np.int32`` and shape ``(seq_len,)``.
+
+ query_len:
+   A number ``0 <= query_len < seq_len``, indicating the length in symbols
+   (likely bytes) of the query part of the text that was used to create
+   ``suffix_array``.
+
+Returns:
+  Return an np.ndarray of shape ``(query_len * num_close_matches,)``, of the
+  same dtype as ``suffix_array``, in which positions
+  ``num_close_matches*i, num_close_matches*i + 1, ...`` represent
+  the num_close_matches positions in the original text that are within the
+  reference portion, and which immediately precede and follow, in the suffix
+  array, query position ``i``.  This means that the suffixes ending at those
+  positions are reverse-lexicographically close to the suffix ending at
+  position ``i``.  As a special case, if one of these returned numbers would
+  equal the EOS position (position seq_len - 1), or if a query position is
+  before any reference position in the suffix aray, we output
+  ``seq_len - 2`` instead to avoid having to handle special cases later on
+  (anyway, these would not represent a close match).
+
+.. hint::
+
+    Please refer to :ref:`find_close_matches_tutorial` for usages.
+"""
+)doc";
+
 static void PybindRowIdsToRowSplits(py::module &m) {
   m.def(
       "row_ids_to_row_splits",
@@ -98,7 +144,7 @@ static void PybindFindCloseMatches(py::module &m) {
         return close_matches;
       },
       py::arg("suffix_array"), py::arg("query_len"),
-      py::arg("num_close_matches"));
+      py::arg("num_close_matches") = 2, kFindCloseMatchesDoc);
 }
 
 void PybindUtils(py::module &m) {

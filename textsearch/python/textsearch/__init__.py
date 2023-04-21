@@ -1,6 +1,6 @@
-from _fasttextsearch import levenshtein_distance
 from _fasttextsearch import find_close_matches
 from _fasttextsearch import get_new2old
+from _fasttextsearch import levenshtein_distance
 
 from .datatypes import SourcedText
 from .datatypes import TextSource
