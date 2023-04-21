@@ -113,7 +113,6 @@ static void PybindFindCloseMatches(py::module &m) {
 
 void PybindUtils(py::module &m) {
   PybindFindCloseMatches(m);
-  PybindGetNew2Old(m);
   PybindRowIdsToRowSplits(m);
 }
 
