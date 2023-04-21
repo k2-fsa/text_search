@@ -19,5 +19,6 @@ from .match import split_into_segments
 from .suffix_array import create_suffix_array
 from .suffix_array import find_close_matches
 
+from .utils import AttributeDict
 from .utils import is_punctuation
 from .utils import row_ids_to_row_splits

@@ -4,6 +4,22 @@ import numpy as np
 from _fasttextsearch import row_ids_to_row_splits as _row_ids_to_row_splits
 
 
+class AttributeDict(dict):
+    def __getattr__(self, key):
+        if key in self:
+            return self[key]
+        raise AttributeError(f"No such attribute '{key}'")
+
+    def __setattr__(self, key, value):
+        self[key] = value
+
+    def __delattr__(self, key):
+        if key in self:
+            del self[key]
+            return
+        raise AttributeError(f"No such attribute '{key}'")
+
+
 def row_ids_to_row_splits(row_ids: np.ndarray) -> np.ndarray:
     """Convert row ids to row splits.
 
