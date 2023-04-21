@@ -1,5 +1,5 @@
+from _fasttextsearch import find_close_matches
 from _fasttextsearch import levenshtein_distance
-from _fasttextsearch import get_new2old
 
 from .datatypes import SourcedText
 from .datatypes import TextSource
@@ -17,7 +17,6 @@ from .match import find_candidate_matches
 from .match import split_into_segments
 
 from .suffix_array import create_suffix_array
-from .suffix_array import find_close_matches
 
 from .utils import AttributeDict
 from .utils import is_punctuation

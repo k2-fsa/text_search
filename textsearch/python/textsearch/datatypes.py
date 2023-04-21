@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Callable, List, Optional, Union
 
 from .utils import row_ids_to_row_splits
-from textsearch import get_new2old
 
 import numpy as np
 
@@ -68,7 +67,11 @@ class TextSource:
             binary_text = np.fromiter((ord(i) for i in s), dtype=np.int32, count=len(s))
             pos = _find_byte_offsets_for_utf8_symbols(binary_text)
 
-            return TextSource(name=name, binary_text=binary_text, pos=pos,)
+            return TextSource(
+                name=name,
+                binary_text=binary_text,
+                pos=pos,
+            )
 
 
 def _find_byte_offsets_for_utf8_symbols(binary_text: np.ndarray) -> np.ndarray:
@@ -342,7 +345,12 @@ def append_texts(texts: List[SourcedText]) -> SourcedText:
 
     sources = [s for t in texts for s in t.sources]
 
-    return SourcedText(binary_text=binary_text, pos=pos, doc=doc, sources=sources,)
+    return SourcedText(
+        binary_text=binary_text,
+        pos=pos,
+        doc=doc,
+        sources=sources,
+    )
 
 
 def filter_texts(
@@ -370,10 +378,16 @@ def filter_texts(
         assert fn is not None
         vfn = np.vectorize(fn)
         keep = vfn(t.binary_text)
-    new2old = get_new2old(keep)
+    assert keep.ndim == 1, keep.ndim
+    new2old = keep.nonzero()[0]
     binary_text = t.binary_text[new2old]
     pos = t.pos[new2old]
     doc = t.doc
     if not isinstance(t.doc, int):
         doc = t.doc[new2old]
-    return SourcedText(binary_text=binary_text, pos=pos, doc=doc, sources=t.sources,)
+    return SourcedText(
+        binary_text=binary_text,
+        pos=pos,
+        doc=doc,
+        sources=t.sources,
+    )

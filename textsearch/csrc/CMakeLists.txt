@@ -28,6 +28,7 @@ if(FTS_ENABLE_TESTS)
     levenshtein_test.cc
     match_test.cc
     suffix_array_test.cc
+    utils_test.cc
   )
 
   foreach(source IN LISTS test_srcs)
