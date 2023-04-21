@@ -25,15 +25,14 @@ Its dimension is the number of new indexes (i.e. the number of True in keep).
 
 Args:
   keep:
-    A 1-D contiguous array of dtype np.bool indicating whether to keep current
-    element (True to keep, False to drop).
+    A 1-D contiguous array of dtype np.int8 indicating whether to keep current
+    element (nonzero to keep, zero to drop).
 
 >>> from textsearch import get_new2old
 >>> import numpy as np
->>> keep = np.array([0, 0, 1, 0, 1, 0, 1, 1], dtype=bool)
+>>> keep = np.array([0, 0, 1, 0, 1, 0, 1, 1], dtype=np.int8)
 >>> get_new2old(keep)
 array([2, 4, 6, 7], dtype=uint32)
-
 )doc";
 
 static constexpr const char *kFindCloseMatchesDoc = R"doc(
@@ -43,10 +42,6 @@ represent the reference text, return a list indicating, for each suffix
 position in the query text, the ``num_close_matches`` suffix positions in the
 reference text that immediately precede and follow it lexicographically.
 (I think suffix position refers to the last character of a suffix).
-
-This is easy to do from the suffix array without computing, for example,
-the LCP array; and it produces exactly ``num_close_matches`` matches per
-position in the query text, which is also convenient.
 
 (Note: the query and reference texts could each represent multiple separate
 sequences, but that is handled by other code; class SourcedText keeps track
@@ -63,9 +58,9 @@ Args:
    ``suffix_array``.
 
 Returns:
-  Return an np.ndarray of shape ``(query_len * num_close_matches,)``, of the
+  Return an np.ndarray of shape ``(query_len, num_close_matches,)``, of the
   same dtype as ``suffix_array``, in which positions
-  ``num_close_matches*i, num_close_matches*i + 1, ...`` represent
+  ``(i, 0), (i, 1),... (i, num_close_matches - 1)`` represent
   the num_close_matches positions in the original text that are within the
   reference portion, and which immediately precede and follow, in the suffix
   array, query position ``i``.  This means that the suffixes ending at those
@@ -107,10 +102,10 @@ static void PybindRowIdsToRowSplits(py::module &m) {
 static void PybindGetNew2Old(py::module &m) {
   m.def(
       "get_new2old",
-      [](py::array_t<bool> keep) -> py::array_t<uint32_t> {
+      [](py::array_t<int8_t> keep) -> py::array_t<uint32_t> {
         py::buffer_info keep_buf = keep.request();
         size_t num_old_elems = keep_buf.size;
-        const bool *p_keep = static_cast<const bool *>(keep_buf.ptr);
+        const int8_t *p_keep = static_cast<const int8_t *>(keep_buf.ptr);
         std::vector<uint32_t> new2old;
         {
           py::gil_scoped_release release;
