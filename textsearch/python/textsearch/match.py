@@ -28,7 +28,7 @@ from _fasttextsearch import (
     levenshtein_distance,
 )
 from .suffix_array import create_suffix_array
-from .datatypes import SourcedText, Transcript
+from .datatypes import SourcedText, TextSource, Transcript
 from .utils import is_overlap, is_punctuation, row_ids_to_row_splits
 
 
@@ -448,9 +448,9 @@ def get_alignments(
                 max_num_matches = num_matches
                 max_ranges = (doc_splits[i], doc_splits[i + 1])
 
-        if max_num_matches < 0.5 * query_len:
+        if max_num_matches < 0.33 * query_len:
             logging.warning(
-                f"Skipping query {q}, less than half of query matched by close_matches."
+                f"Skipping query {q}, less than 1 / 3 of query matched by close_matches."
             )
             continue
 
@@ -492,7 +492,7 @@ def get_alignments(
 
 
 def _get_segment_candidates(
-    sourced_text: SourcedText, alignment
+    target_source: TextSource, alignment
 ) -> List[Tuple[int, int, float]]:
     """
     Split the long aligned sequence into smaller segments.
@@ -553,7 +553,6 @@ def _get_segment_candidates(
       current segment, start position and end position are indexes in aligns.
     """
     (query_start, target_start), aligns = alignment
-    target_source = sourced_text.sources[sourced_text.doc[target_start]]
 
     # [(index, score)]
     begin_scores: List[Tuple[int, float]] = []
@@ -665,7 +664,7 @@ def _get_segment_candidates(
     sorted_begin_scores = sorted(begin_scores, key=lambda x: x[2], reverse=True)
     sorted_end_scores = sorted(end_scores, key=lambda x: x[2], reverse=True)
 
-    top_ratio = 0.5
+    top_ratio = 0.25
     top_begin = sorted_begin_scores[0 : int(len(begin_scores) * top_ratio)]
     top_end = sorted_end_scores[0 : int(len(end_scores) * top_ratio)]
 
@@ -673,7 +672,7 @@ def _get_segment_candidates(
     begin_list: List[Tuple[int, int, float]] = []
     end_list: List[Tuple[int, int, float]] = []
 
-    num_of_best_position = 8
+    num_of_best_position = 4
     max_errors_ratio = 0.25
     max_text_length = 2000
     init_duration_score = 5  # duration_score for segment between 5 ~ 20 seconds
@@ -785,7 +784,7 @@ def _get_segment_candidates(
 
 
 def split_into_segments(
-    sourced_text: SourcedText, alignment
+    query_source: Union[Transcript, TextSource], target_source: TextSource, alignment
 ) -> List[Dict[str, Union[str, int, float]]]:
     """
     Split a long aligned query into smaller segments.
@@ -803,11 +802,10 @@ def split_into_segments(
     """
     (query_start, target_start), aligns = alignment
 
-    target_source = sourced_text.sources[sourced_text.doc[target_start]]
-    query_source = sourced_text.sources[sourced_text.doc[query_start]]
-
     # candidates : (start, end, score), start and end are indexes in aligns
-    candidates = _get_segment_candidates(sourced_text=sourced_text, alignment=alignment)
+    candidates = _get_segment_candidates(
+        target_source=target_source, alignment=alignment
+    )
 
     candidates = sorted(candidates, key=lambda x: x[2], reverse=True)
 
@@ -823,7 +821,7 @@ def split_into_segments(
     results = []
     min_text_length = 100
 
-    preceding_context_length = 500
+    preceding_context_length = 1000
     for seg in segments:
         begin_pos = aligns[seg[0]]["ref_pos"]
         end_pos = aligns[seg[1]]["ref_pos"]
