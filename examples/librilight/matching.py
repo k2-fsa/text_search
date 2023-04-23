@@ -1,12 +1,14 @@
 import argparse
 import logging
 import numpy as np
+import os
+from datetime import datetime
 from heapq import heappush, heappop
 from multiprocessing.pool import Pool
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
 from queue import Queue
-from threading import Thread
+from threading import Barrier, Thread
 from typing import Dict, List, Set, Tuple, Union
 
 from lhotse import CutSet, MonoCut, SupervisionSegment, load_manifest_lazy
@@ -43,12 +45,6 @@ def get_args():
         """,
     )
     parser.add_argument(
-        "--book-dir",
-        type=str,
-        help="""The directory of books.
-        """,
-    )
-    parser.add_argument(
         "--batch-size",
         type=int,
         default=10,
@@ -71,7 +67,8 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
-            "num_workers": 2,
+            "num_dataloader": 8,
+            "num_aligner": 6,
             "num_close_matches": 2,
             "reference_length_difference": 0.1,
             "segment_length": 5000,
@@ -84,181 +81,276 @@ def get_params() -> AttributeDict:
     return params
 
 
-def dataloader(params: AttributeDict, cuts_queue: Queue, data_queue: Queue):
+def dataloader(
+    thread_index: int,
+    params: AttributeDict,
+    cuts_queue: Queue,
+    data_queue: Queue,
+    barrier: Barrier,
+):
+    """
+    Load texts (the references) from disk, and construct the sourced_text object.
+
+    The item in cuts_queue is a list of MonoCut red from manifests.
+
+    The item in data_queue is :
+
+      {
+          "query_len": query_len,      # the total number of tokens of queries
+          "cuts": batch_cuts,          # The cuts from cuts_queue
+          "cut_indexes": transcripts_cut_index, # A tuple of (cut index, supervision index)
+          "sourced_text": sourced_text, # The sourced_text constructed from batch_cuts.
+      }
+
+    """
     while True:
-        batch_cuts = cuts_queue.get()
-        if batch_cuts is None:
-            cuts_queue.put(None)
-            break
+        try:
+            batch_cuts = cuts_queue.get()
+            if batch_cuts is None:
+                cuts_queue.put(None)
+                break
 
-        # List of transcripts (total number of valid supervisions in the cuts).
-        transcripts: List[Transcript] = []
+            # List of transcripts (total number of valid supervisions in the cuts).
+            transcripts: List[Transcript] = []
 
-        # Contains cut index and local supervision index
-        transcripts_cut_index: List[Tuple[int, int]] = []
+            # Contains cut index and local supervision index
+            transcripts_cut_index: List[Tuple[int, int]] = []
 
-        # Constructed from the valid books in the cuts
-        books: List[TextSource] = []
+            # Constructed from the valid books in the cuts
+            books: List[TextSource] = []
 
-        # unique books exist in this batch of cuts
-        book_paths: Set[str] = set()
-        query_len = 0
+            # unique books exist in this batch of cuts
+            book_paths: Set[str] = set()
+            query_len = 0
 
-        # Construct transcripts
-        for i, cut in enumerate(batch_cuts):
-            # No text book available, skip this cut.
-            if cut.text_path == "":
-                logging.warning(f"Skipping {cut.id} due to missing of reference book")
-                continue
-            for j, sup in enumerate(cut.supervisions):
-                # Transcript requires the input to be the dict like this.
-                text_list = []
-                begin_times_list = []
-                for ali in sup.alignment["symbol"]:
-                    text_list.append(ali.symbol)
-                    begin_times_list.append(ali.start)
-                aligns = {"text": text_list, "begin_times": begin_times_list}
-                # alignments in a supervision might be empty
-                if aligns["text"]:
-                    transcript = Transcript.from_dict(
-                        name=sup.id,
-                        d=aligns,
-                        use_utf8=params.use_utf8,
-                        is_bpe=params.is_bpe,
+            logging.info(f"Thread[{thread_index}] loading cuts and books")
+            # Construct transcripts
+            for i, cut in enumerate(batch_cuts):
+                # No text book available, skip this cut.
+                if not os.path.isfile(cut.book):
+                    logging.warning(
+                        f"Thread[{thread_index}] Skipping {cut.id} due to missing "
+                        f"of reference book"
                     )
-                    query_len += transcript.binary_text.size
-                    transcripts.append(transcript)
-                    transcripts_cut_index.append((i, j))
-            book_paths.add(cut.text_path)
+                    continue
+                for j, sup in enumerate(cut.supervisions):
+                    # Transcript requires the input to be the dict like this.
+                    text_list = []
+                    begin_times_list = []
+                    for ali in sup.alignment["symbol"]:
+                        text_list.append(ali.symbol)
+                        begin_times_list.append(ali.start)
+                    aligns = {"text": text_list, "begin_times": begin_times_list}
+                    # alignments in a supervision might be empty
+                    if aligns["text"]:
+                        transcript = Transcript.from_dict(
+                            name=sup.id,
+                            d=aligns,
+                            use_utf8=params.use_utf8,
+                            is_bpe=params.is_bpe,
+                        )
+                        query_len += transcript.binary_text.size
+                        transcripts.append(transcript)
+                        transcripts_cut_index.append((i, j))
+                book_paths.add(cut.book)
 
-        # Construct references (the books)
-        for i, book_path in enumerate(book_paths):
-            with open(params.book_dir / book_path, "r") as f:
-                book_text = f.read()
-                book = TextSource.from_str(
-                    name=book_path,
-                    s=book_text,
-                    use_utf8=params.use_utf8,
-                )
-                books.append(book)
+            # Construct references (the books)
+            for i, book_path in enumerate(book_paths):
+                with open(book_path, "r") as f:
+                    book_text = f.read()
+                    book = TextSource.from_str(
+                        name=book_path,
+                        s=book_text,
+                        use_utf8=params.use_utf8,
+                    )
+                    books.append(book)
 
-        if not transcripts:
+            if not transcripts:
+                continue
+
+            logging.info(f"Thread[{thread_index}] loading cuts and books done.")
+
+            sourced_transcript_lists = texts_to_sourced_texts(
+                transcripts, uppercase=params.use_uppercase
+            )
+            sourced_transcripts = append_texts(sourced_transcript_lists)
+
+            sourced_book_list = texts_to_sourced_texts(
+                books, uppercase=params.use_uppercase
+            )
+            sourced_books = append_texts(sourced_book_list)
+
+            def _is_not_punc(c: np.int32) -> bool:
+                return not is_punctuation(chr(int(c)))
+
+            # Removing the punctuation
+            sourced_books = filter_texts(sourced_books, fn=_is_not_punc)
+
+            sourced_text = append_texts([sourced_transcripts, sourced_books])
+
+            logging.info(f"Thread[{thread_index}] construct sourced_text done.")
+
+            assert query_len == sourced_text.doc_splits[len(transcripts)], (
+                query_len,
+                sourced_text.doc_splits[len(transcripts)],
+            )
+            data_queue.put(
+                {
+                    "query_len": query_len,
+                    "cuts": batch_cuts,
+                    "cut_indexes": transcripts_cut_index,
+                    "sourced_text": sourced_text,
+                }
+            )
+        except Exception as e:
+            logging.error(f"Thread[{thread_index}] caught {type(e)}: e")
             continue
-
-        sourced_transcript_lists = texts_to_sourced_texts(
-            transcripts, uppercase=params.use_uppercase
-        )
-        sourced_transcripts = append_texts(sourced_transcript_lists)
-
-        sourced_book_list = texts_to_sourced_texts(
-            books, uppercase=params.use_uppercase
-        )
-        sourced_books = append_texts(sourced_book_list)
-
-        def _is_not_punc(c: np.int32) -> bool:
-            return not is_punctuation(chr(int(c)))
-
-        # Removing the punctuation
-        sourced_books = filter_texts(sourced_books, fn=_is_not_punc)
-
-        sourced_text = append_texts([sourced_transcripts, sourced_books])
-
-        assert query_len == sourced_text.doc_splits[len(transcripts)], (
-            query_len,
-            sourced_text.doc_splits[len(transcripts)],
-        )
-        data_queue.put(
-            {
-                "query_len": query_len,
-                "cuts": batch_cuts,
-                "cut_indexes": transcripts_cut_index,
-                "sourced_text": sourced_text,
-            }
-        )
-    data_queue.put(None)
-    logging.info("dataloader done.")
+    barrier.wait()
+    if thread_index == 0:
+        data_queue.put(None)
+    logging.info(f"Thread[{thread_index}] dataloader done.")
 
 
 def aligner(
+    thread_index: int,
     params: AttributeDict,
     data_queue: Queue,
     align_queue: Queue,
+    barrier: Barrier,
     thread_pool: ThreadPool,
 ):
+    """
+    Align each query in the sourced_text to its corresponding segment in references
+
+    The item in data_queue is:
+      {
+          "query_len": query_len,      # the total number of tokens of queries
+          "cuts": batch_cuts,          # A list of MonoCut from cuts_queue
+          "cut_indexes": transcripts_cut_index, # A tuple of (cut index, supervision index)
+          "sourced_text": sourced_text, # The sourced_text constructed from batch_cuts.
+      }
+
+    The item in align_queue is:
+      {
+          "cuts": item["cuts"],  # A list of MonoCut inherited from data_queue.
+          "cut_indexes": item["cut_indexes"], # Inherit from data_queue.
+          "alignments": alignments,  # The alignment results.
+          "sourced_text": sourced_text, # Inherit from data_queue.
+      }
+
+    """
     while True:
-        item = data_queue.get()
-        if item is None:
-            data_queue.put(None)
-            break
-        sourced_text = item["sourced_text"]
-        query_len = item["query_len"]
+        try:
+            item = data_queue.get()
+            if item is None:
+                data_queue.put(None)
+                break
+            sourced_text = item["sourced_text"]
+            query_len = item["query_len"]
 
-        logging.info(f"Creating suffix array.")
-        suffix_array = create_suffix_array(sourced_text.binary_text)
+            logging.info(f"Thread[{thread_index}] Creating suffix array.")
+            suffix_array = create_suffix_array(sourced_text.binary_text)
 
-        logging.info(f"Finding close matches.")
-        close_matches = find_close_matches(
-            suffix_array, query_len, num_close_matches=params.num_close_matches
-        )
+            logging.info(f"Thread[{thread_index}] Finding close matches.")
+            close_matches = find_close_matches(
+                suffix_array, query_len, num_close_matches=params.num_close_matches
+            )
 
-        logging.info(f"Getting alignments.")
-        alignments = get_alignments(
-            sourced_text,
-            close_matches,
-            segment_length=params.segment_length,
-            reference_length_difference=params.reference_length_difference,
-            thread_pool=thread_pool,
-        )
+            logging.info(f"Thread[{thread_index}] Getting alignments.")
+            alignments = get_alignments(
+                sourced_text,
+                close_matches,
+                segment_length=params.segment_length,
+                reference_length_difference=params.reference_length_difference,
+                thread_pool=thread_pool,
+            )
 
-        assert sourced_text.doc[query_len] == len(alignments), (
-            sourced_text.doc[query_len],
-            len(alignments),
-        )
-        assert len(item["cut_indexes"]) == len(alignments), (
-            len(item["cut_indexes"]),
-            len(alignments),
-        )
-        align_queue.put(
-            {
-                "cuts": item["cuts"],
-                "cut_indexes": item["cut_indexes"],
-                "alignments": alignments,
-                "sourced_text": sourced_text,
-            }
-        )
-    align_queue.put(None)
-    logging.info(f"aligner done.")
+            assert sourced_text.doc[query_len] == len(alignments), (
+                sourced_text.doc[query_len],
+                len(alignments),
+            )
+            assert len(item["cut_indexes"]) == len(alignments), (
+                len(item["cut_indexes"]),
+                len(alignments),
+            )
+            align_queue.put(
+                {
+                    "cuts": item["cuts"],
+                    "cut_indexes": item["cut_indexes"],
+                    "alignments": alignments,
+                    "sourced_text": sourced_text,
+                }
+            )
+        except Exception as e:
+            logging.error(f"Thread[{thread_index}] caught {type(e)}: e")
+            continue
+    barrier.wait()
+    if thread_index == 0:
+        align_queue.put(None)
+    logging.info(f"Thread[{thread_index}] aligner done.")
 
 
-def split_helper(sourced_text, transcripts_cut_index, alignment):
-    segments = split_into_segments(sourced_text, alignment)
+def split_helper(query_source, target_source, transcripts_cut_index, alignment):
+    """
+    A worker function for splitter.
+    """
+    segments = split_into_segments(query_source, target_source, alignment)
     return transcripts_cut_index, segments
 
 
 def splitter(
-    params: AttributeDict, align_queue: Queue, write_queue: Queue, process_pool: Pool
+    params: AttributeDict,
+    align_queue: Queue,
+    write_queue: Queue,
+    process_pool: Pool,
 ):
+    """
+    Split the query into smaller segments.
+
+    The item in align_queue is:
+      {
+          "cuts": item["cuts"],  # A list of MonoCut inherited from data_queue.
+          "cut_indexes": item["cut_indexes"], # Inherit from data_queue.
+          "alignments": alignments,  # The alignment results.
+          "sourced_text": sourced_text, # Inherit from data_queue.
+      }
+
+    The item in write_queue is:
+      {
+          "cuts": item["cuts"],  # A list of MonoCut inherited from align_queue.
+          "segments": segments,  # The segmented results (contains cut_indexes).
+      }
+    """
     while True:
-        item = align_queue.get()
-        if item is None:
-            align_queue.put(None)
-            break
+        try:
+            item = align_queue.get()
+            if item is None:
+                align_queue.put(None)
+                break
 
-        alignments = item["alignments"]
-        sourced_text = item["sourced_text"]
-        cut_indexes = item["cut_indexes"]
+            alignments = item["alignments"]
+            sourced_text = item["sourced_text"]
+            cut_indexes = item["cut_indexes"]
 
-        arguments = []
-        for i in range(len(alignments)):
-            if alignments[i] is not None:
-                arguments.append((sourced_text, cut_indexes[i], alignments[i]))
+            arguments = []
+            for i in range(len(alignments)):
+                if alignments[i] is not None:
+                    (query_start, target_start), _ = alignments[i]
+                    query_source = sourced_text.sources[sourced_text.doc[query_start]]
+                    target_source = sourced_text.sources[sourced_text.doc[target_start]]
+                    arguments.append(
+                        (query_source, target_source, cut_indexes[i], alignments[i])
+                    )
 
-        logging.info("Splitting into segments.")
-        async_results = process_pool.starmap_async(split_helper, arguments)
-        results = async_results.get()
-        logging.info("Splitting into segments done.")
+            logging.info(f"Splitting into segments.")
+            async_results = process_pool.starmap_async(split_helper, arguments)
+            results = async_results.get()
+            logging.info(f"Splitting into segments done.")
 
-        write_queue.put({"cuts": item["cuts"], "segments": results})
+            write_queue.put({"cuts": item["cuts"], "segments": results})
+        except Exception as e:
+            logging.error(f"Splitter caught {type(e)}: e")
+            continue
     write_queue.put(None)
     logging.info(f"splitter done.")
 
@@ -266,119 +358,149 @@ def splitter(
 def writer(
     params: AttributeDict, write_queue: Queue, cuts_writer: SequentialJsonlWriter
 ):
+    """
+    Write the segmented results to disk as new manifests.
+
+    The item in write_queue is:
+      {
+          "cuts": item["cuts"],  # A list of MonoCut inherited from align_queue.
+          "segments": segments,  # The segmented results (contains cut_indexes).
+      }
+    """
     while True:
-        item = write_queue.get()
-        if item is None:
-            break
+        try:
+            item = write_queue.get()
+            if item is None:
+                break
 
-        results = item["segments"]
-        batch_cuts = item["cuts"]
-        cut_segment_index: Dict[str, int] = {}
-        cut_list = []
-        for item in results:
-            cut_indexes = item[0]
-            segments = item[1]
+            results = item["segments"]
+            batch_cuts = item["cuts"]
+            cut_segment_index: Dict[str, int] = {}
+            cut_list = []
+            for item in results:
+                cut_indexes = item[0]
+                segments = item[1]
 
-            current_cut = batch_cuts[cut_indexes[0]]
-            if current_cut.id not in cut_segment_index:
-                cut_segment_index[current_cut.id] = 0
+                current_cut = batch_cuts[cut_indexes[0]]
+                if current_cut.id not in cut_segment_index:
+                    cut_segment_index[current_cut.id] = 0
 
-            for seg in segments:
-                id = f"{current_cut.id}_{cut_segment_index[current_cut.id]}"
-                cut_segment_index[current_cut.id] += 1
-                supervision = SupervisionSegment(
-                    id=id,
-                    channel=current_cut.supervisions[cut_indexes[1]].channel,
-                    language=current_cut.supervisions[cut_indexes[1]].language,
-                    speaker=current_cut.supervisions[cut_indexes[1]].speaker,
-                    recording_id=current_cut.recording.id,
-                    start=seg["start_time"],
-                    duration=seg["duration"],
-                    custom={
-                        "texts": [seg["ref"], seg["hyp"]],
-                        "pre_texts": [seg["pre_ref"], seg["pre_hyp"]],
-                        "begin_byte": seg["begin_byte"],
-                        "end_byte": seg["end_byte"],
-                    },
-                )
-                cut = MonoCut(
-                    id,
-                    start=seg["start_time"],
-                    duration=seg["duration"],
-                    channel=current_cut.channel,
-                    supervisions=[supervision],
-                    recording=current_cut.recording,
-                    custom={"text_path": str(params.book_dir / current_cut.text_path)},
-                )
-                cut_list.append(cut)
+                for seg in segments:
+                    id = f"{current_cut.id}_{cut_segment_index[current_cut.id]}"
+                    cut_segment_index[current_cut.id] += 1
+                    supervision = SupervisionSegment(
+                        id=id,
+                        channel=current_cut.supervisions[cut_indexes[1]].channel,
+                        language=current_cut.supervisions[cut_indexes[1]].language,
+                        speaker=current_cut.supervisions[cut_indexes[1]].speaker,
+                        recording_id=current_cut.recording.id,
+                        start=seg["start_time"],
+                        duration=seg["duration"],
+                        custom={
+                            "texts": [seg["ref"], seg["hyp"]],
+                            "pre_texts": [seg["pre_ref"], seg["pre_hyp"]],
+                            "begin_byte": seg["begin_byte"],
+                            "end_byte": seg["end_byte"],
+                        },
+                    )
+                    cut = MonoCut(
+                        id,
+                        start=seg["start_time"],
+                        duration=seg["duration"],
+                        channel=current_cut.channel,
+                        supervisions=[supervision],
+                        recording=current_cut.recording,
+                        custom={"text_path": str(current_cut.book)},
+                    )
+                    cut_list.append(cut)
 
-        logging.info(f"Writing results.")
-        for cut in cut_list:
-            cuts_writer.write(cut, flush=True)
-        logging.info(f"Write results done.")
+            logging.info(f"Writing results.")
+            for i, cut in enumerate(cut_list):
+                # Flushing only on last cut to accelerate writing.
+                cuts_writer.write(cut, flush=(i == len(cut_list) - 1))
+            logging.info(f"Write results done.")
+        except Exception as e:
+            logging.error(f"Writer caught {type(e)}: e")
+            continue
     logging.info(f"writer done.")
 
 
 def main():
     args = get_args()
-    args.book_dir = Path(args.book_dir)
     params = get_params()
     params.update(vars(args))
 
     raw_cuts = load_manifest_lazy(params.manifest_in)
     cuts_writer = CutSet.open_writer(params.manifest_out, overwrite=True)
 
+    # thread_pool to run the levenshtein alignment.
+    # we use thread_pool here because the levenshtein run on C++ with GIL released.
     thread_pool = ThreadPool()
+
+    # process_pool to split the query into segments.
+    # we use process_pool here because the splitting algorithm run on Python
+    # (we can not get accelerating with thread_pool because of the GIL)
     process_pool = Pool()
 
-    cuts_queue = Queue(params.num_workers * 2)
-    data_queue = Queue(params.num_workers * 2)
-    align_queue = Queue(params.num_workers * 2)
-    write_queue = Queue(params.num_workers * 2)
+    # We create several producer and consumer patterns to make each part of the
+    # whole pipeline run in parallel.
+    # 1. Read cuts to cuts_queue;
+    # 2. Construct sourced_text from cuts_queue and put it into data_queue;
+    # 3. Align each query in sourced_text from data_queue, put the result to align_queue;
+    # 4. Read alignments from align_queue then split into smaller segments, and
+    #    put the results to write_queue.
+    # 5. Writer write the item from write_queue to disk.
+    cuts_queue = Queue(params.num_dataloader * 2)
+    data_queue = Queue(params.num_aligner * 2)
+    align_queue = Queue(params.num_aligner)
+    write_queue = Queue(params.num_aligner * 4)
 
     dataloader_threads = []
-    for i in range(max(1, params.num_workers // 2)):
+    dataloader_barrier = Barrier(params.num_dataloader)
+    for i in range(params.num_dataloader):
         dataloader_threads.append(
             Thread(
                 target=dataloader,
                 args=(
+                    i,
                     params,
                     cuts_queue,
                     data_queue,
+                    dataloader_barrier,
                 ),
             )
         )
         dataloader_threads[-1].start()
 
     aligner_threads = []
-    for i in range(params.num_workers):
+    aligner_barrier = Barrier(params.num_aligner)
+    for i in range(params.num_aligner):
         aligner_threads.append(
             Thread(
                 target=aligner,
                 args=(
+                    i,
                     params,
                     data_queue,
                     align_queue,
+                    aligner_barrier,
                     thread_pool,
                 ),
             )
         )
         aligner_threads[-1].start()
 
-    splitter_threads = []
-    for i in range(params.num_workers):
-        splitter_threads.append(
-            Thread(
-                target=splitter,
-                args=(
-                    params,
-                    align_queue,
-                    write_queue,
-                    process_pool,
-                ),
-            )
-        )
-        splitter_threads[-1].start()
+    # splitting is fast, so we only need one splitter.
+    splitter_thread = Thread(
+        target=splitter,
+        args=(
+            params,
+            align_queue,
+            write_queue,
+            process_pool,
+        ),
+    )
+    splitter_thread.start()
 
     # only one thread to write results
     writer_thread = Thread(
@@ -404,18 +526,23 @@ def main():
         cuts_queue.put(batch_cuts)
     cuts_queue.put(None)
 
-    for t in dataloader_threads + aligner_threads + splitter_threads:
+    for t in dataloader_threads + aligner_threads:
         t.join()
+    splitter_thread.join()
     writer_thread.join()
     cuts_writer.close()
 
 
 if __name__ == "__main__":
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    now = datetime.now()
+    data_time = now.strftime("%Y-%m-%d-%H-%M-%S")
+    os.makedirs("logs", exist_ok=True)
+    log_file_name = f"logs/matching_{data_time}"
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=logging.INFO,
         format=formatter,
-        handlers=[logging.FileHandler("matching.log"), logging.StreamHandler()],
+        handlers=[logging.FileHandler(log_file_name), logging.StreamHandler()],
     )
 
     main()
