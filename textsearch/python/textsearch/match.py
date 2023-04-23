@@ -566,8 +566,14 @@ def _get_segment_candidates(
         ]
     )
 
-    max_silence = 3  # seconds
-    punctuation_score = 3  # score for preceding (begin) and following(end) punctuation
+    # will be used as max_silence, punctuation_score, init_duration_score
+    # we need to make these scores similar to avoiding one of them dominating
+    # the total score. Any value is ok, choose 3 here mainly based on the silence length.
+    base_score = 3
+    max_silence = base_score  # seconds
+    punctuation_score = (
+        base_score  # score for preceding (begin) and following(end) punctuation
+    )
 
     # Use cumsum to get number of matches and errors in a range efficiently
     cumsum_match = [0] * len(aligns)
@@ -659,7 +665,9 @@ def _get_segment_candidates(
     num_of_best_position = 4
     max_errors_ratio = 0.20
     max_text_length = 1000
-    init_duration_score = 3  # duration_score for segment between 5 ~ 20 seconds
+    init_duration_score = (
+        base_score  # duration_score for segment between 5 ~ 20 seconds
+    )
     max_duration = 30  # seconds
     min_duration = 2  # seconds
     expected_duration = (5, 20)  # seconds
@@ -673,7 +681,7 @@ def _get_segment_candidates(
             point_score = begin_scores[item[0]][1] + end_scores[ind][1]
             # matching scores
             matched_score = (
-                3
+                base_score
                 * (cumsum_match[end_scores[ind][0]] - cumsum_match[item[0]])
                 / (end_scores[ind][0] - item[0])
             )
@@ -684,7 +692,7 @@ def _get_segment_candidates(
             if total_errors >= (end_scores[ind][0] - item[0]) * max_errors_ratio:
                 ind += 1
                 continue
-            error_score = 3 * (total_errors) / (end_scores[ind][0] - item[0])
+            error_score = base_score * (total_errors) / (end_scores[ind][0] - item[0])
 
             # duration scores
             duration = (
@@ -742,7 +750,7 @@ def _get_segment_candidates(
             point_score = begin_scores[ind][1] + end_scores[item[0]][1]
             # matching scores
             matched_score = (
-                3
+                base_score
                 * (cumsum_match[item[0]] - cumsum_match[begin_scores[ind][0]])
                 / (item[0] - begin_scores[ind][0])
             )
@@ -753,7 +761,7 @@ def _get_segment_candidates(
             if total_errors >= (item[0] - begin_scores[ind][0]) * max_errors_ratio:
                 ind -= 1
                 continue
-            error_score = 3 * (total_errors) / (item[0] - begin_scores[ind][0])
+            error_score = base_score * (total_errors) / (item[0] - begin_scores[ind][0])
 
             # duration scores
             duration = (
