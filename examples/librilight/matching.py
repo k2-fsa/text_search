@@ -47,11 +47,18 @@ def get_args():
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=10,
+        default=50,
         help="""The number of cuts in a batch.
         """,
     )
-
+    parser.add_argument(
+        "--num-workers",
+        type=int,
+        default=6,
+        help="""The number of workers run in parallel, each worker will process
+        a batch of cuts.
+        """,
+    )
     return parser.parse_args()
 
 
@@ -67,8 +74,6 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
-            "num_dataloader": 8,
-            "num_aligner": 6,
             "num_close_matches": 2,
             "reference_length_difference": 0.1,
             "segment_length": 5000,
@@ -299,9 +304,11 @@ def split_helper(query_source, target_source, transcripts_cut_index, alignment):
 
 
 def splitter(
+    thread_index: int,
     params: AttributeDict,
     align_queue: Queue,
     write_queue: Queue,
+    barrier: Barrier,
     process_pool: Pool,
 ):
     """
@@ -342,17 +349,19 @@ def splitter(
                         (query_source, target_source, cut_indexes[i], alignments[i])
                     )
 
-            logging.info(f"Splitting into segments.")
+            logging.info(f"Thread[{thread_index}] Splitting into segments.")
             async_results = process_pool.starmap_async(split_helper, arguments)
             results = async_results.get()
-            logging.info(f"Splitting into segments done.")
+            logging.info(f"Thread[{thread_index}] Splitting into segments done.")
 
             write_queue.put({"cuts": item["cuts"], "segments": results})
         except Exception as e:
-            logging.error(f"Splitter caught {type(e)}: e")
+            logging.error(f"Thread[{thread_index}] Splitter caught {type(e)}: e")
             continue
-    write_queue.put(None)
-    logging.info(f"splitter done.")
+    barrier.wait()
+    if thread_index == 0:
+        write_queue.put(None)
+    logging.info(f"Thread[{thread_index}] splitter done.")
 
 
 def writer(
@@ -450,14 +459,15 @@ def main():
     # 4. Read alignments from align_queue then split into smaller segments, and
     #    put the results to write_queue.
     # 5. Writer write the item from write_queue to disk.
-    cuts_queue = Queue(params.num_dataloader * 2)
-    data_queue = Queue(params.num_aligner * 2)
-    align_queue = Queue(params.num_aligner)
-    write_queue = Queue(params.num_aligner * 4)
+    cuts_queue = Queue(params.num_workers * 4)
+    data_queue = Queue(params.num_workers * 4)
+    align_queue = Queue(params.num_workers * 2)
+    write_queue = Queue(params.num_workers * 8)
 
     dataloader_threads = []
-    dataloader_barrier = Barrier(params.num_dataloader)
-    for i in range(params.num_dataloader):
+    num_dataloaders = params.num_workers * 2
+    dataloader_barrier = Barrier(num_dataloaders)
+    for i in range(num_dataloaders):
         dataloader_threads.append(
             Thread(
                 target=dataloader,
@@ -473,8 +483,9 @@ def main():
         dataloader_threads[-1].start()
 
     aligner_threads = []
-    aligner_barrier = Barrier(params.num_aligner)
-    for i in range(params.num_aligner):
+    num_aligners = params.num_workers
+    aligner_barrier = Barrier(num_aligners)
+    for i in range(num_aligners):
         aligner_threads.append(
             Thread(
                 target=aligner,
@@ -491,16 +502,24 @@ def main():
         aligner_threads[-1].start()
 
     # splitting is fast, so we only need one splitter.
-    splitter_thread = Thread(
-        target=splitter,
-        args=(
-            params,
-            align_queue,
-            write_queue,
-            process_pool,
-        ),
-    )
-    splitter_thread.start()
+    splitter_threads = []
+    num_splitters = max(1, params.num_workers // 4)
+    splitter_barrier = Barrier(num_splitters)
+    for i in range(num_splitters):
+        splitter_threads.append(
+            Thread(
+                target=splitter,
+                args=(
+                    i,
+                    params,
+                    align_queue,
+                    write_queue,
+                    splitter_barrier,
+                    process_pool,
+                ),
+            )
+        )
+        splitter_threads[-1].start()
 
     # only one thread to write results
     writer_thread = Thread(
@@ -526,9 +545,8 @@ def main():
         cuts_queue.put(batch_cuts)
     cuts_queue.put(None)
 
-    for t in dataloader_threads + aligner_threads:
+    for t in dataloader_threads + aligner_threads + splitter_threads:
         t.join()
-    splitter_thread.join()
     writer_thread.join()
     cuts_writer.close()
 
