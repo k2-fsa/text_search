@@ -1,4 +1,4 @@
-# Usage
+# Installation
 
 This section describes how to compile and use this project.
 
