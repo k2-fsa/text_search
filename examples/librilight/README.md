@@ -12,12 +12,12 @@ It has three subsets, small (577 hours), medium (5193 hours), large (51934 hours
 @xiaoyu
 
 
-## Prepare manifest
+## Prepare manifests
 
 **HINT:** You don't have to run this stage separately, it is already included in the next stage, the following documents just shows you
 the details of this stage.
 
-Use the changes in this branch https://github.com/yfyeung/lhotse/tree/librilight
+Use the lhotse changes in this branch: https://github.com/yfyeung/lhotse/tree/librilight
 
 Run the command below:
 
@@ -33,8 +33,8 @@ The audio-dir is the audios directory, each subdirectory contains a subset of da
 `-- small
 ```
 
-The book-dir is the books directory, it has three subdirectories, each for a subset of data, it also
-has three json file indicating the relationship between recordings and books.
+The book-dir is the books directory, it has three subdirectories, each for a subset of librilight, it also
+has three json files indicating the relationship between recordings and books.
 
 ```
 .
@@ -77,13 +77,13 @@ The supervision one looks like:
 ## Decode the audios
 
 This stage decodes the audios to texts with a pre-trained ASR model.
-Firstly split the long audio into small pieces (for eaxmple 30 seconds), then decode these this pieces of audios to texts, combine them together at last.
+Firstly split the long audio into smaller pieces (for eaxmple 30 seconds), then decode these pieces of audios to texts, combine them together at last.
 
 Code is available here: https://github.com/k2-fsa/icefall/pull/980
 
-You can run the whole pipeline with the script https://github.com/k2-fsa/icefall/blob/27b9c45d53e3a4268a76c6d2c2bb42e0d1932ed5/egs/librispeech/ASR/long_file_recog.sh
+You can run the whole pipeline with the script long_file_recog.sh
 
-**Note:** The whole pipeline include the stages to prepare raw manifests in the above stage (stage 1 in long_file_recog.sh).
+**Note:** The whole pipeline includes the stages to prepare raw manifests in the above stage (stage 1 in long_file_recog.sh).
 
 It will generate a manifest (including the transcripted text and timestamps).
 
