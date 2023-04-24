@@ -3,6 +3,7 @@
 // Copyright (c)  2023  Xiaomi Corporation
 #include "textsearch/csrc/utils.h"
 #include <assert.h>
+#include <map>
 #include <vector>
 
 namespace fasttextsearch {
@@ -32,27 +33,53 @@ void RowIdsToRowSplits(int32_t num_elems, const uint32_t *row_ids,
   }
 }
 
-void GetNew2Old(const bool *keep, uint32_t num_old_elems,
-                std::vector<uint32_t> *new2old) {
-  auto old2new = std::vector<uint32_t>(num_old_elems);
+void FindCloseMatches(const int32_t *suffix_array, int32_t seq_len,
+                      int32_t query_len, int32_t num_close_matches,
+                      int32_t *close_matches) {
+  assert(num_close_matches > 0 && num_close_matches % 2 == 0);
 
-  // Exclusive sum
-  uint32_t sum = 0;
-  for (size_t i = 0; i != old2new.size(); ++i) {
-    old2new[i] = sum;
-    sum += (int)keep[i];
+  for (int32_t i = 0; i < query_len * num_close_matches; ++i)
+    close_matches[i] = seq_len - 2;
+
+  int32_t half_num_close_matches = num_close_matches / 2;
+  // Each query has multiple close_matches, unfinished_q contains those queries
+  // that don't have enough close_matches, the key is query index in
+  // [0, query_len), the value is the position next close_matches will write to
+  // in [0, num_close_matches).
+  auto unfinished_q = std::map<int32_t, int32_t>();
+  // prev_refs contains the previous reference indexes of current pos, with the
+  // help of `prev_ref_start_index` it is functioned as a FIFO queue.
+  auto prev_refs = std::vector<int32_t>(half_num_close_matches, seq_len - 2);
+  int32_t prev_ref_start_index = 0;
+
+  int32_t refs_index = 0;
+  // suffix_array[seq_len - 1] is the appended EOS, should not be included.
+  for (int32_t i = 0; i < seq_len - 1; ++i) {
+    int32_t text_pos = suffix_array[i];
+    // When meeting a reference.
+    if (text_pos >= query_len) {
+      prev_refs[refs_index % half_num_close_matches] = text_pos;
+      prev_ref_start_index =
+          (prev_ref_start_index + 1) % half_num_close_matches;
+
+      refs_index += 1;
+      for (auto it = unfinished_q.begin(); it != unfinished_q.end();) {
+        close_matches[it->first * num_close_matches + it->second] = text_pos;
+        if (it->second == num_close_matches - 1) {
+          it = unfinished_q.erase(it);
+        } else {
+          it->second += 1;
+          ++it;
+        }
+      }
+    } else { // When meeting a query
+      for (int32_t j = 0; j < half_num_close_matches; ++j) {
+        close_matches[text_pos * num_close_matches + j] =
+            prev_refs[(j + prev_ref_start_index) % half_num_close_matches];
+      }
+      unfinished_q[text_pos] = half_num_close_matches;
+    }
   }
-  uint32_t num_new_elems = sum;
-
-  assert(num_new_elems >= 0);
-  assert(num_new_elems <= num_old_elems);
-
-  *new2old = std::vector<uint32_t>(num_new_elems + 1);
-  for (size_t i = 0; i != old2new.size(); ++i) {
-    if (i == old2new.size() - 1 || old2new[i + 1] > old2new[i])
-      (*new2old)[old2new[i]] = i;
-  }
-  new2old->resize(num_new_elems);
 }
 
 } // namespace fasttextsearch

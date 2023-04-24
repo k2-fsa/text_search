@@ -26,19 +26,46 @@ namespace fasttextsearch {
 void RowIdsToRowSplits(int32_t num_elems, const uint32_t *row_ids,
                        int32_t num_rows, uint32_t *row_splits);
 
-/** This function is copied/modified from
- * https://github.com/k2-fsa/k2/blob/master/k2/csrc/algorithms.h
+/**
+ * Assuming the suffix array was created from a text where the first
+ * ``query_len`` positions represent the query text and the remaining positions
+ * represent the reference text, return a list indicating, for each suffix
+ * position in the query text, the ``num_close_matches`` suffix positions in the
+ * reference text that immediately precede and follow it lexicographically.
+ * (I think suffix position refers to the last character of a suffix).
  *
- * @param [in] keep  keep array of length num_old_elems indicating whether to
- *                   keep current element.
- * @param [in] num_old_elems  The number of elements of keep vector.
+ * This is easy to do from the suffix array without computing, for example,
+ * the LCP array; and it produces exactly ``num_close_matches`` matches per
+ * position in the query text, which is also convenient.
  *
- * @param [out] new2old  An array mapping the new indexes to the old indexes.
- *                       Its dimension is the number of new indexes
- *                       (i.e. the number of true in keep)
+ * @param [in] suffix_array  A suffix array as created by
+ *                `CreateSuffixArray` of dtype ``int32``.
+ * @param [in] seq_len  The length of suffix_array.
+ * @param [in] query_len  The length of query, must satisfy
+ *               ``0 <= query_len < seq_len``.
+ * @param [in] num_close_matches  The number of close_matches for each query
+ *               element.
+ * @param [in, out] close_matches  The array container that close_matches will
+ *                    write to, its size is ``query_len * num_close_matches``,
+ *                    in which positions
+ *                    ``num_close_matches*i, num_close_matches*i + 1, ...``
+ *                    represent the num_close_matches positions in the original
+ *                    text that are within the reference portion, and which
+ *                    immediately precede and follow, in the suffix array, query
+ *                    position ``i``.  This means that the suffixes ending at
+ *                    those positions are reverse-lexicographically close to the
+ *                    suffix ending at position ``i``.  As a special case, if
+ *                    one of these returned numbers would equal the EOS position
+ *                    (position seq_len - 1), or if a query position is before
+ *                    any reference position in the suffix aray, we output
+ *                    ``seq_len - 2`` instead to avoid having to handle special
+ *                    cases later on(anyway, these would not represent a close
+ *                    match).
  */
-void GetNew2Old(const bool *keep, uint32_t num_old_elems,
-                std::vector<uint32_t> *new2old);
+void FindCloseMatches(const int32_t *suffix_array, int32_t seq_len,
+                      int32_t query_len, int32_t num_close_matches,
+                      int32_t *close_matches);
+
 } // namespace fasttextsearch
 
 #endif // TEXTSEARCH_CSRC_UTILS_H_

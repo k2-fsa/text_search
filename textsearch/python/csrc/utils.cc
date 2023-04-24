@@ -4,6 +4,7 @@
 
 #include "textsearch/python/csrc/utils.h"
 #include "textsearch/csrc/utils.h"
+#include <cassert>
 
 namespace fasttextsearch {
 
@@ -18,21 +19,48 @@ Args:
     On return it will contain the computed row splits.
 )doc";
 
-static constexpr const char *kGetNew2OldDoc = R"doc(
-Returns an array mapping the new indexes to the old indexes.
-Its dimension is the number of new indexes (i.e. the number of True in keep).
+static constexpr const char *kFindCloseMatchesDoc = R"doc(
+Assuming the suffix array was created from a text where the first
+``query_len`` positions represent the query text and the remaining positions
+represent the reference text, return a list indicating, for each suffix
+position in the query text, the ``num_close_matches`` suffix positions in the
+reference text that immediately precede and follow it lexicographically.
+(I think suffix position refers to the last character of a suffix).
+
+(Note: the query and reference texts could each represent multiple separate
+sequences, but that is handled by other code; class SourcedText keeps track
+of that information.)
 
 Args:
-  keep:
-    A 1-D contiguous array of dtype np.bool indicating whether to keep current
-    element (True to keep, False to drop).
+ suffix_array:
+   A suffix array as created by :func:`create_suffix_array`, of dtype
+   ``np.int32`` and shape ``(seq_len,)``.
 
->>> from textsearch import get_new2old
->>> import numpy as np
->>> keep = np.array([0, 0, 1, 0, 1, 0, 1, 1], dtype=bool)
->>> get_new2old(keep)
-array([2, 4, 6, 7], dtype=uint32)
+ query_len:
+   A number ``0 <= query_len < seq_len``, indicating the length in symbols
+   (likely bytes) of the query part of the text that was used to create
+   ``suffix_array``.
+ num_close_matches:
+   The number of close_matches for each query element.
 
+Returns:
+  Return an np.ndarray of shape ``(query_len, num_close_matches,)``, of the
+  same dtype as ``suffix_array``, in which positions
+  ``(i, 0), (i, 1),... (i, num_close_matches - 1)`` represent
+  the num_close_matches positions in the original text that are within the
+  reference portion, and which immediately precede and follow, in the suffix
+  array, query position ``i``.  This means that the suffixes ending at those
+  positions are reverse-lexicographically close to the suffix ending at
+  position ``i``.  As a special case, if one of these returned numbers would
+  equal the EOS position (position seq_len - 1), or if a query position is
+  before any reference position in the suffix aray, we output
+  ``seq_len - 2`` instead to avoid having to handle special cases later on
+  (anyway, these would not represent a close match).
+
+.. hint::
+
+    Please refer to :ref:`find_close_matches_tutorial` for usages.
+"""
 )doc";
 
 static void PybindRowIdsToRowSplits(py::module &m) {
@@ -57,25 +85,34 @@ static void PybindRowIdsToRowSplits(py::module &m) {
       py::arg("row_ids"), py::arg("row_splits"), kRowIdsToRowSplitsDoc);
 }
 
-static void PybindGetNew2Old(py::module &m) {
+static void PybindFindCloseMatches(py::module &m) {
   m.def(
-      "get_new2old",
-      [](py::array_t<bool> keep) -> py::array_t<uint32_t> {
-        py::buffer_info keep_buf = keep.request();
-        size_t num_old_elems = keep_buf.size;
-        const bool *p_keep = static_cast<const bool *>(keep_buf.ptr);
-        std::vector<uint32_t> new2old;
+      "find_close_matches",
+      [](py::array_t<int32_t> suffix_array, int32_t query_len,
+         int32_t num_close_matches) -> py::array_t<int32_t> {
+        assert(num_close_matches > 0 && num_close_matches % 2 == 0);
+        py::buffer_info suffix_buf = suffix_array.request();
+        int32_t seq_len = suffix_buf.size;
+        assert(query_len < seq_len);
+        const int32_t *p_suffix = static_cast<const int32_t *>(suffix_buf.ptr);
+        auto close_matches =
+            py::array_t<int32_t>(query_len * num_close_matches);
+        py::buffer_info matches_buf = close_matches.request();
+        int32_t *p_matches = static_cast<int32_t *>(matches_buf.ptr);
         {
           py::gil_scoped_release release;
-          GetNew2Old(p_keep, num_old_elems, &new2old);
+          FindCloseMatches(p_suffix, seq_len, query_len, num_close_matches,
+                           p_matches);
         }
-        return py::array(new2old.size(), new2old.data());
+        close_matches = close_matches.reshape({query_len, num_close_matches});
+        return close_matches;
       },
-      py::arg("keep"), kGetNew2OldDoc);
+      py::arg("suffix_array"), py::arg("query_len"),
+      py::arg("num_close_matches") = 2, kFindCloseMatchesDoc);
 }
 
 void PybindUtils(py::module &m) {
-  PybindGetNew2Old(m);
+  PybindFindCloseMatches(m);
   PybindRowIdsToRowSplits(m);
 }
 

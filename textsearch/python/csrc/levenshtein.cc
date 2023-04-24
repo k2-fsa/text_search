@@ -33,14 +33,14 @@ Note:
   penalized. What that means is that deleting elements from the start and end
   of target is "free"! For example, if we had ACT and CGACTGAC, the levenshtein
   distance would be 0, because removing CG from the start and GAC from the end
-  of target is "free" and does not count into total levenshtein distance.
+  of target is "free" and does not count into the total levenshtein distance.
 
 Args:
   query:
-    The query sequence, it is a one dimension numpy ndarray, only np.int32 is
+    The query sequence; it is a 1-D numpy ndarray, only ``np.int32`` is
     supported now.
   target:
-    The target sequence, it is a one dimension numpy ndarray with same dtype as
+    The target sequence, it is a 1-D numpy ndarray with same dtype as
     query sequence.
   insert_cost:
     The cost of insertion error, default 1.
@@ -60,7 +60,7 @@ Returns:
 >>> query = np.array([1, 2, 3, 4], dtype=np.int32)
 >>> target = np.array([1, 5, 3, 4, 6, 7, 1, 2, 4], dtype=np.int32)
 >>> distance, alignments = levenshtein_distance(query, target)
->>> print (distance, alignments)
+>>> print(distance, alignments)
 1 [(0, 3, 'CSCC'), (6, 8, 'CCIC')]
 
 The result above indicates that there are two segments in target sequence having
@@ -68,6 +68,11 @@ the same levenshtein distance with query sequence. The levenshtein distance is 1
 the end index of first segment into target sequence is 3 ([1,5,3,4]), and the
 end index of second sequence is 8 ([1,2,4]). For the align string, `I` means
 insertion, `D` means deletion, `S` means substitution, `C` means correct.
+
+.. hint::
+
+   Please refer to :func:`textsearch.get_nice_alignments` for how to visualize
+   the alignments.
 )doc";
 
 template <typename T>
