@@ -403,7 +403,7 @@ def writer(
                         language=current_cut.supervisions[cut_indexes[1]].language,
                         speaker=current_cut.supervisions[cut_indexes[1]].speaker,
                         recording_id=current_cut.recording.id,
-                        start=seg["start_time"],
+                        start=0,
                         duration=seg["duration"],
                         custom={
                             "texts": [seg["ref"], seg["hyp"]],
