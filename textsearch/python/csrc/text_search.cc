@@ -5,6 +5,7 @@
 #include "textsearch/python/csrc/text_search.h"
 
 #include "textsearch/python/csrc/levenshtein.h"
+#include "textsearch/python/csrc/match.h"
 #include "textsearch/python/csrc/suffix_array.h"
 #include "textsearch/python/csrc/utils.h"
 
@@ -14,6 +15,7 @@ PYBIND11_MODULE(_fasttextsearch, m) {
   m.doc() = "Python wrapper for textsearch";
 
   PybindLevenshtein(m);
+  PybindMatch(m);
   PybindSuffixArray(m);
   PybindUtils(m);
 }

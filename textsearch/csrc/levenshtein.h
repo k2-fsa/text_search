@@ -29,6 +29,7 @@
 
 namespace fasttextsearch {
 
+namespace internal {
 // See docs in Backtrace below, it is a segment of backtrace containing 64 bits
 // of path trace.
 struct DynamicBacktrace {
@@ -203,6 +204,7 @@ struct LevenshteinElement {
     return res;
   }
 };
+} // namespace internal
 
 /*
  * AlignItem contains the start position and end position into the target
@@ -232,11 +234,6 @@ struct AlignItem {
  * Calculate the levenshtein distance between query and target and also return
  * the alignments (can be constructed from backtrace in LevenshteinElement).
  *
- * Note: We are doing the infix search, gaps at query end and start are not
- * penalized. What that means is that deleting elements from the start and end
- * of target is "free"! For example, if we had ACT and CGACTGAC, the levenshtein
- * distance would be 0, because removing CG from the start and GAC from the end
- * of target is "free" and does not count into total levenshtein distance.
  *
  * @param [in] query The pointer to the query sequence.
  * @param [in] query_length The length of the query sequence.
@@ -248,6 +245,16 @@ struct AlignItem {
  *                             same levenshtein distance. `alignments` will be
  *                             reallocated in this function, it's size will be
  *                             the number of matching segments.
+ * @param [in] mode  Can be either "global" or "infix", when it equals "global",
+ *                   we are doing the normal levenshtein distance, when it
+ *                   equals "infix", it means we are doing the infix search,
+ *                   gaps at query end and start are not penalized. What that
+ *                   means is that deleting elements from the start and end
+ *                   of target is "free"! For example, if we had ACT and
+ *                   CGACTGAC, the levenshtein distance would be 0, because
+ *                   removing CG from the start and GAC from the end
+ *                   of target is "free" and does not count into total
+ *                   levenshtein distance.
  * @param [in] insert_cost  The cost of insertion.
  * @param [in] delete_cost  The cost of deletion.
  * @param [in] replace_cost  The cost of replacement.
@@ -255,35 +262,40 @@ struct AlignItem {
  * @return  Returns the levenshtein distance between query and target.
  */
 template <typename T>
-int32_t LevenshteinDistance(const T *query, size_t query_length,
-                            const T *target, size_t target_length,
-                            std::vector<AlignItem> *alignments,
-                            int32_t insert_cost = 1, int32_t delete_cost = 1,
-                            int32_t replace_cost = 1) {
+int32_t
+LevenshteinDistance(const T *query, size_t query_length, const T *target,
+                    size_t target_length, std::vector<AlignItem> *alignments,
+                    const std::string &mode = "infix", int32_t insert_cost = 1,
+                    int32_t delete_cost = 1, int32_t replace_cost = 1) {
 
   assert(alignments != nullptr);
-  std::vector<LevenshteinElement> raw_alignments;
+  std::vector<internal::LevenshteinElement> raw_alignments;
 
-  LevenshteinElement best_score = LevenshteinElement(-1);
+  internal::LevenshteinElement best_score = internal::LevenshteinElement(-1);
 
   assert(target_length != 0);
   if (query_length == 0) {
     return 0;
   }
 
-  auto scores = std::vector<LevenshteinElement>(query_length + 1);
+  auto scores = std::vector<internal::LevenshteinElement>(query_length + 1);
 
-  scores[0] = LevenshteinElement(0);
+  scores[0] = internal::LevenshteinElement(0);
   for (size_t i = 1; i <= query_length; i++) {
     scores[i] = scores[i - 1].Insert(insert_cost);
   }
 
   for (size_t j = 1; j <= target_length; j++) {
-    LevenshteinElement prev_diag = scores[0], prev_diag_cache;
+    internal::LevenshteinElement prev_diag = scores[0], prev_diag_cache;
 
-    // we are doing infix search, the cost of the beginning symbol will always
+    // When doing infix search, the cost of the beginning symbol will always
     // be 0.
-    scores[0] = LevenshteinElement(0);
+    if (mode == "infix") {
+      scores[0] = internal::LevenshteinElement(0);
+    } else {
+      assert(mode == "global");
+      scores[0] = scores[0].Delete(delete_cost);
+    }
 
     for (size_t k = 1; k <= query_length; k++) {
       prev_diag_cache = scores[k];
@@ -303,14 +315,16 @@ int32_t LevenshteinDistance(const T *query, size_t query_length,
       prev_diag = prev_diag_cache;
     }
 
-    auto score = scores[query_length];
-    if (best_score.cost == -1 || score.cost <= best_score.cost) {
-      if (score.cost < best_score.cost) {
-        raw_alignments.clear();
+    if (mode == "infix" || j == target_length) {
+      auto score = scores[query_length];
+      if (best_score.cost == -1 || score.cost <= best_score.cost) {
+        if (score.cost < best_score.cost) {
+          raw_alignments.clear();
+        }
+        best_score = score;
+        score.position = j - 1;
+        raw_alignments.push_back(score);
       }
-      best_score = score;
-      score.position = j - 1;
-      raw_alignments.push_back(score);
     }
   }
 

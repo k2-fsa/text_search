@@ -51,6 +51,24 @@ TEST(Levenshtein, TestBasic) {
   }
 }
 
+TEST(Levenshtein, TestBasicGlobal) {
+  auto query = std::vector<int32_t>({1, 3, 4, 5, 6, 7, 8, 9});
+  auto target = std::vector<int32_t>({2, 1, 4, 5, 3, 7, 8, 9, 5, 3});
+
+  std::vector<AlignItem> alignments;
+  auto result =
+      LevenshteinDistance(query.data(), query.size(), target.data(),
+                          target.size(), &alignments, "global" /*mode*/);
+
+  EXPECT_EQ(result, 5);
+  EXPECT_EQ(alignments.size(), 1);
+  auto &align = alignments[0];
+  EXPECT_EQ(align.cost, 5);
+  EXPECT_EQ(align.start, 0);
+  EXPECT_EQ(align.end, 9);
+  EXPECT_EQ(align.align, "DCICCSCCCDD");
+}
+
 TEST(Levenshtein, TestRandom) {
   std::srand(std::time(0)); // use current time as seed for random generator
   int32_t ref_len = std::rand() % 1000 + 10000;
