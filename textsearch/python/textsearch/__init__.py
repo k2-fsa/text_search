@@ -11,8 +11,13 @@ from .datatypes import texts_to_sourced_texts
 
 from .levenshtein import get_nice_alignments
 
+from .match import get_alignments
+from .match import get_longest_increasing_pairs
+from .match import find_candidate_matches
+from .match import split_into_segments
+
 from .suffix_array import create_suffix_array
 
-from .text_search import find_candidate_matches
-
+from .utils import AttributeDict
+from .utils import is_punctuation
 from .utils import row_ids_to_row_splits
