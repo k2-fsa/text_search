@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import logging
+import math
 from bisect import bisect_left
 from dataclasses import dataclass
 from heapq import heappush, heappop
@@ -906,7 +907,7 @@ def split_into_segments(
                 "begin_byte": begin_pos,
                 "end_byte": end_pos,
                 "start_time": start,
-                "duration": duration,
+                "duration": math.floor(1000 * duration) / 1000,
                 "hyp": hyp,
                 "ref": ref,
                 "pre_ref": pre_ref,
