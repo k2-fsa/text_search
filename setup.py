@@ -89,7 +89,6 @@ with open("textsearch/python/textsearch/__init__.py", "a") as f:
     f.write(f"__version__ = '{get_package_version()}'\n")
 
 setuptools.setup(
-    version=get_package_version(),
     package_dir={
         "textsearch": "textsearch/python/textsearch",
     },
