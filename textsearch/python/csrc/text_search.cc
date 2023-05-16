@@ -11,7 +11,7 @@
 
 namespace fasttextsearch {
 
-PYBIND11_MODULE(_fasttextsearch, m) {
+PYBIND11_MODULE(_textsearch, m) {
   m.doc() = "Python wrapper for textsearch";
 
   PybindLevenshtein(m);

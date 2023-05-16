@@ -1,8 +1,12 @@
 # Installation
 
-This section describes how to compile and use this project.
+## With pip
 
-(For developers only)
+```
+pip install fasttextsearch
+```
+
+## For developers
 
 ```bash
 pip install numpy

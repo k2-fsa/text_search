@@ -1,0 +1,6 @@
+include README.md
+include LICENSE
+include CMakeLists.txt
+include requirements.txt
+recursive-include textsearch *.*
+recursive-include cmake *.*
