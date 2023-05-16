@@ -132,7 +132,7 @@ def dataloader(
             # Construct transcripts
             for i, cut in enumerate(batch_cuts):
                 # No text book available, skip this cut.
-                if not os.path.isfile(cut.book):
+                if not os.path.isfile(cut.text_path):
                     logging.warning(
                         f"Thread[{thread_index}] Skipping {cut.id} due to missing "
                         f"of reference book"
@@ -157,7 +157,7 @@ def dataloader(
                         query_len += transcript.binary_text.size
                         transcripts.append(transcript)
                         transcripts_cut_index.append((i, j))
-                book_paths.add(cut.book)
+                book_paths.add(cut.text_path)
 
             # Construct references (the books)
             for i, book_path in enumerate(book_paths):
@@ -419,7 +419,7 @@ def writer(
                         channel=current_cut.channel,
                         supervisions=[supervision],
                         recording=current_cut.recording,
-                        custom={"text_path": str(current_cut.book)},
+                        custom={"text_path": str(current_cut.text_path)},
                     )
                     cut_list.append(cut)
 

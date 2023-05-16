@@ -861,11 +861,17 @@ def split_into_segments(
         end_pos = aligns[seg[1]]["ref_pos"] + 1
 
         preceding_index = seg[0] if seg[0] == 0 else seg[0] - 1
-        start = (aligns[preceding_index]["hyp_time"] + aligns[seg[0]]["hyp_time"]) / 2
+
+        # start = (aligns[preceding_index]["hyp_time"] + aligns[seg[0]]["hyp_time"]) / 2
+
+        start = aligns[seg[0]]["hyp_time"]
+
         following_index = seg[1] if seg[1] == len(aligns) - 1 else seg[1] + 1
         duration = (
             aligns[following_index]["hyp_time"] + aligns[seg[1]]["hyp_time"]
         ) / 2 - start
+
+        # duration = aligns[seg[1]]["hyp_time"] - start
 
         hyp_begin_pos = aligns[seg[0]]["hyp_pos"]
         hyp_end_pos = aligns[seg[1]]["hyp_pos"] + 1
