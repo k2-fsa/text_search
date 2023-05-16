@@ -1,4 +1,4 @@
-pybind11_add_module(_fasttextsearch
+pybind11_add_module(_textsearch
   levenshtein.cc
   match.cc
   suffix_array.cc
@@ -6,5 +6,5 @@ pybind11_add_module(_fasttextsearch
   utils.cc
 )
 
-target_link_libraries(_fasttextsearch PRIVATE textsearch_core)
+target_link_libraries(_textsearch PRIVATE textsearch_core)
 

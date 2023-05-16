@@ -1,5 +1,5 @@
-from _fasttextsearch import find_close_matches
-from _fasttextsearch import levenshtein_distance
+from _textsearch import find_close_matches
+from _textsearch import levenshtein_distance
 
 from .datatypes import SourcedText
 from .datatypes import TextSource
@@ -21,3 +21,38 @@ from .suffix_array import create_suffix_array
 from .utils import AttributeDict
 from .utils import is_punctuation
 from .utils import row_ids_to_row_splits
+__version__ = '1.0'
+__version__ = '1.0'
+__version__ = '1.0'
+__version__ = '1.0'
+__version__ = '1.0'
+__version__ = '1.0'
+__version__ = '1.0'
+__version__ = '1.0'
+__version__ = '0.1'
+__version__ = '0.1'
+__version__ = '0.1'
+__version__ = '0.1'
+__version__ = '0.1'
+__version__ = '0.1'
+__version__ = '0.1'
+__version__ = '0.1'
+__version__ = '0.1'
+__version__ = '0.1'
+__version__ = '0.1'
+__version__ = '0.1'
+__version__ = '0.1'
+__version__ = '0.1'
+__version__ = '0.1'
+__version__ = '0.1'
+__version__ = '0.1'
+__version__ = '0.1'
+__version__ = '0.1'
+__version__ = '0.1'
+__version__ = '0.1'
+__version__ = '0.1'
+__version__ = '0.1'
+__version__ = '0.1'
+__version__ = '0.1'
+__version__ = '0.1'
+__version__ = '0.1'

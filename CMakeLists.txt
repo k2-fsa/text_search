@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
-project(fasttextsearch)
+project(textsearch)
 
-set(FTS_VERSION "1.0")
+set(TS_VERSION "0.1")
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
@@ -12,13 +12,13 @@ set(BUILD_RPATH_USE_ORIGIN TRUE)
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 if(NOT APPLE)
-  set(FTS_RPATH_ORIGIN "$ORIGIN")
+  set(TS_RPATH_ORIGIN "$ORIGIN")
 else()
-  set(FTS_RPATH_ORIGIN "@loader_path")
+  set(TS_RPATH_ORIGIN "@loader_path")
 endif()
 
-set(CMAKE_INSTALL_RPATH ${FTS_RPATH_ORIGIN})
-set(CMAKE_BUILD_RPATH ${FTS_RPATH_ORIGIN})
+set(CMAKE_INSTALL_RPATH ${TS_RPATH_ORIGIN})
+set(CMAKE_BUILD_RPATH ${TS_RPATH_ORIGIN})
 
 set(BUILD_SHARED_LIBS ON)
 if(WIN32)
@@ -31,19 +31,19 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-option(FTS_ENABLE_TESTS "Whether to build tests" ON)
+option(TS_ENABLE_TESTS "Whether to build tests" ON)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/Modules)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
 include(CheckCXXCompilerFlag)
 if(NOT WIN32)
-  check_cxx_compiler_flag("-std=c++14" FTS_COMPILER_SUPPORTS_CXX14)
+  check_cxx_compiler_flag("-std=c++14" TS_COMPILER_SUPPORTS_CXX14)
 else()
   # windows x86 or x86_64
-  check_cxx_compiler_flag("/std:c++14" FTS_COMPILER_SUPPORTS_CXX14)
+  check_cxx_compiler_flag("/std:c++14" TS_COMPILER_SUPPORTS_CXX14)
 endif()
-if(NOT FTS_COMPILER_SUPPORTS_CXX14)
+if(NOT TS_COMPILER_SUPPORTS_CXX14)
   message(FATAL_ERROR "
     Text search requires a compiler supporting at least C++14.
     If you are using GCC, please upgrade it to at least version 7.0.
@@ -72,7 +72,7 @@ if(WIN32)
   endforeach()
 endif()
 
-if(FTS_ENABLE_TESTS)
+if(TS_ENABLE_TESTS)
   include(googletest)
   enable_testing()
 endif()
