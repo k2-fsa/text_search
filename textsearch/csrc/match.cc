@@ -29,6 +29,9 @@ void GetLongestIncreasingPairs(
     const int32_t *seq1, const int32_t *seq2, int32_t size,
     std::vector<std::pair<int32_t, int32_t>> *best_trace) {
 
+  if (size == 0)
+    return;
+
   assert(size > 0);
   // sort this by i, then j.  prev_n values can be undefined for now.
   std::vector<internal::GoodMatch> sorted_pairs(size);
