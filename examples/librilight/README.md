@@ -104,15 +104,3 @@ python examples/librilight/matching.py --manifest-in path/to/librilight_cuts_sma
 ```
 
 The manifest-in is the manifests generated in the decode audios stage.
-
-Note: You have to use the changes in https://github.com/danpovey/text_search/pull/27
-
-
-
-
-
-
-
-
-
-
