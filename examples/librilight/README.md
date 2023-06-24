@@ -9,7 +9,11 @@ It has three subsets, small (577 hours), medium (5193 hours), large (51934 hours
 
 ### Texts
 
-@xiaoyu
+For each audio in librilight, there is a `json` manifest containing the librivox link
+of current audio, you can download the text book via this link. We provide a eaxmple
+scirpt `download_text.py`, it is not perfect though, you might need to change some
+code during the downloading. We will try to give a fully automatic downloading script
+later.
 
 
 ## Prepare manifests

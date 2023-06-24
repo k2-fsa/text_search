@@ -140,12 +140,17 @@ def _break_query(
         num_chunk = (query_end - query_start) // segment_length
         if num_chunk > 0:
             for i in range(num_chunk):
+                real_target_end = (
+                    target_start + segment_length
+                    if target_start + segment_length < target_end
+                    else target_end
+                )
                 segments.append(
                     (
                         query_start,
                         query_start + segment_length,
                         target_start,
-                        target_start + segment_length,
+                        real_target_end,
                     )
                 )
                 query_start += segment_length
@@ -280,6 +285,13 @@ def _combine_sub_alignments(
         # target_align_end and align_str
         target_align_start, target_align_end, align_str = sub["alignment"][1][0]
         query_start, query_end, target_start, target_end = sub["segment"]
+        # we are doing levenshtein_distance in "global" mode
+        assert target_align_start == 0, target_align_start
+        assert target_end == (target_start + target_align_end + 1), (
+            target_end,
+            target_start + target_align_end + 1,
+        )
+
         query_id = sourced_text.doc[query_start]
 
         if alignments[query_id] is None:
@@ -300,24 +312,30 @@ def _combine_sub_alignments(
         # The times is in byte level.
         time_stride = 1 if query_source.binary_text.dtype == np.uint8 else 4
 
+        query_length = query_end - query_start
         query_local_index = query_start - query_base
         query_index = query_start
         target_index = target_start + target_align_start
 
         hyp_time = 0 if times is None else float(times[query_local_index * time_stride])
         for ali in align_str:
-            if ali != "D":
-                hyp_time = (
-                    0
-                    if times is None
-                    else float(times[query_local_index * time_stride])
-                )
+            query_local_index = (
+                query_local_index
+                if query_local_index < query_length
+                else query_length - 1
+            )
+            hyp_time = (
+                0 if times is None else float(times[query_local_index * time_stride])
+            )
+            target_index = target_index if target_index < target_end else target_end - 1
+            ref_pos = int(sourced_text.pos[target_index])
+            query_index = query_index if query_index < query_end else query_end - 1
             if ali == "I":
                 aligns.append(
                     {
                         "ref": "",
                         "hyp": chr(sourced_text.binary_text[query_index]),
-                        "ref_pos": int(sourced_text.pos[target_index]),
+                        "ref_pos": ref_pos,
                         "hyp_pos": query_local_index,
                         "hyp_time": hyp_time,
                     }
@@ -329,7 +347,7 @@ def _combine_sub_alignments(
                     {
                         "ref": chr(sourced_text.binary_text[target_index]),
                         "hyp": "",
-                        "ref_pos": int(sourced_text.pos[target_index]),
+                        "ref_pos": ref_pos,
                         "hyp_pos": query_local_index,
                         "hyp_time": hyp_time,
                     }
@@ -349,7 +367,7 @@ def _combine_sub_alignments(
                     {
                         "ref": ref,
                         "hyp": hyp,
-                        "ref_pos": int(sourced_text.pos[target_index]),
+                        "ref_pos": ref_pos,
                         "hyp_pos": query_local_index,
                         "hyp_time": hyp_time,
                     }
@@ -421,6 +439,9 @@ def get_alignments(
         # matched_points is a list of (query index, target index), global index in sourced_text
         matched_points = get_longest_increasing_pairs(seq1, seq2)
 
+        if len(matched_points) == 0:
+            continue
+
         # In the algorithm of `find_close_matches`, `sourced_text.binary_text.size - 1`
         # means no close_matches
         trim_pos = len(matched_points) - 1
@@ -481,6 +502,7 @@ def get_alignments(
         return {
             "segment": segment,
             "alignment": alignment,
+            "target": target,
         }
 
     pool = ThreadPool() if thread_pool is None else thread_pool
