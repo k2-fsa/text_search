@@ -224,7 +224,8 @@ Default: infix.</p></li>
 <dt class="field-even">Returns</dt>
 <dd class="field-even"><p>Return a tuple which has two elements, the first element is the levenshtein
 distance, the second element is a list of tuple, each tuple in the list has
-<cite>start</cite> and <cite>end</cite> (index into the target sequence) and <cite>alignment</cite>
+<cite>start</cite> and <cite>end</cite> (index into the target sequence, for “global” mode, <cite>start</cite>
+is always 0, <cite>end</cite> is always <cite>len(target) - 1</cite>) and <cite>alignment</cite>.
 See the examples below for more details.</p>
 </dd>
 </dl>
