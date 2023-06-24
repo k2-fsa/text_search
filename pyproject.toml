@@ -1,0 +1,34 @@
+[build-system]
+requires = [
+    "setuptools>=61",
+    "wheel",
+    "ninja",
+    "cmake>=3.8",
+]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "fasttextsearch"
+version = "0.5"
+authors = [
+  { name="Next-gen Kaldi development team", email="wkang.pku@gmail.com" },
+]
+description="Some fast-ish algorithms for batch text search in moderate-sized collections, intended for data cleanup."
+dependencies = [
+  "numpy",
+]
+readme = "README.md"
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/k2-fsa/text_search"
+"Bug Tracker" = "https://github.com/k2-fsa/text_search/issues"
+
+
+

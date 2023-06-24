@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import _fasttextsearch
+import _textsearch
 import numpy as np
 
 
@@ -49,7 +49,7 @@ def create_suffix_array(array: np.ndarray) -> np.ndarray:
     hint:
       Please refer to https://en.wikipedia.org/wiki/Suffix_array
       for what suffix array is. Different from the above Wikipedia
-      article the special sentinel letter ``$`` in `fasttextsearch`_
+      article the special sentinel letter ``$`` in `textsearch`_
       is known as EOS and it is larger than any other characters.
 
     Args:
@@ -86,7 +86,7 @@ def create_suffix_array(array: np.ndarray) -> np.ndarray:
 
     # The C++ code requires the input array to be contiguous.
     array_int32 = np.ascontiguousarray(padded_array, dtype=np.int32)
-    return _fasttextsearch.create_suffix_array(array_int32)
+    return _textsearch.create_suffix_array(array_int32)
 
 
 def find_close_matches(

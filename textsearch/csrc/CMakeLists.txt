@@ -22,7 +22,7 @@ function(textsearch_add_test source)
   )
 endfunction()
 
-if(FTS_ENABLE_TESTS)
+if(TS_ENABLE_TESTS)
   # please sort the source files alphabetically
   set(test_srcs
     levenshtein_test.cc

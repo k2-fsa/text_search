@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
-from _fasttextsearch import (
+from _textsearch import (
     get_longest_increasing_pairs as _get_longest_increasing_pairs,
     levenshtein_distance,
 )

@@ -12,11 +12,11 @@ function(textsearch_add_py_test source)
   get_filename_component(textsearch_path ${CMAKE_CURRENT_LIST_DIR} DIRECTORY)
 
   set_property(TEST ${name}
-    PROPERTY ENVIRONMENT "PYTHONPATH=${textsearch_path}:$<TARGET_FILE_DIR:_fasttextsearch>:$ENV{PYTHONPATH}"
+    PROPERTY ENVIRONMENT "PYTHONPATH=${textsearch_path}:$<TARGET_FILE_DIR:_textsearch>:$ENV{PYTHONPATH}"
   )
 endfunction()
 
-if(FTS_ENABLE_TESTS)
+if(TS_ENABLE_TESTS)
   set(test_srcs
     test_find_close_matches.py
     test_levenshtein_distance.py
