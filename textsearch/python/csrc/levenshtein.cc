@@ -54,7 +54,8 @@ Args:
 Returns:
   Return a tuple which has two elements, the first element is the levenshtein
   distance, the second element is a list of tuple, each tuple in the list has
-  `start` and `end` (index into the target sequence) and `alignment`
+  `start` and `end` (index into the target sequence, for "global" mode, `start`
+  is always 0, `end` is always `len(target) - 1`) and `alignment`.
   See the examples below for more details.
 
 >>> from textsearch import levenshtein_distance
