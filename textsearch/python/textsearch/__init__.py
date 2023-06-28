@@ -11,10 +11,10 @@ from .datatypes import texts_to_sourced_texts
 
 from .levenshtein import get_nice_alignments
 
-from .match import get_alignments
-from .match import get_longest_increasing_pairs
+from .match import align_queries
 from .match import find_candidate_matches
-from .match import split_into_segments
+from .match import get_longest_increasing_pairs
+from .match import split_aligned_queries
 
 from .suffix_array import create_suffix_array
 

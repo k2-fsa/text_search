@@ -33,6 +33,11 @@ class TextSource:
     # utf-8 character
     pos: Optional[np.ndarray] = None
 
+    # Whether has punctuation in this TextSource, if True we will only
+    # break the query at punctuation position when splitting aligned segment
+    # into smaller pieces.
+    has_punctuation: bool = False
+
     @property
     def text(self) -> str:
         """Return Python string representation of self.binary_text decoded as UTF-8."""
@@ -43,7 +48,9 @@ class TextSource:
             return "".join([chr(i) for i in self.binary_text])
 
     @staticmethod
-    def from_str(name: str, s: str, use_utf8: bool) -> "TextSource":
+    def from_str(
+        name: str, s: str, use_utf8: bool, has_punctuation: bool = False
+    ) -> "TextSource":
         """Construct an instance of TextSource from a string.
 
         Args:
@@ -62,15 +69,19 @@ class TextSource:
                 name=name,
                 binary_text=np.frombuffer(binary_text, dtype=np.uint8),
                 pos=None,
+                has_punctuation=has_punctuation,
             )
         else:
-            binary_text = np.fromiter((ord(i) for i in s), dtype=np.int32, count=len(s))
+            binary_text = np.fromiter(
+                (ord(i) for i in s), dtype=np.int32, count=len(s)
+            )
             pos = _find_byte_offsets_for_utf8_symbols(binary_text)
 
             return TextSource(
                 name=name,
                 binary_text=binary_text,
                 pos=pos,
+                has_punctuation=has_punctuation,
             )
 
 
@@ -184,7 +195,10 @@ class Transcript:
                     # Check that begin_time is non-decreasing.
                     #
                     # < here requires that it is strictly increasing.
-                    assert time_list[-1] < begin_time, (time_list[-1], begin_time)
+                    assert time_list[-1] < begin_time, (
+                        time_list[-1],
+                        begin_time,
+                    )
 
                 # bytes belonging to the same text have the same begin time
                 time_list += [begin_time] * len(b)
@@ -207,7 +221,10 @@ class Transcript:
                     # Check that begin_time is non-decreasing.
                     #
                     # < here requires that it is strictly increasing.
-                    assert time_list[-1] < begin_time, (time_list[-1], begin_time)
+                    assert time_list[-1] < begin_time, (
+                        time_list[-1],
+                        begin_time,
+                    )
 
                 # bytes belonging to the same text have the same begin time
                 # Each character occupies 4 bytes, so it is multiplied by 4
@@ -346,10 +363,7 @@ def append_texts(texts: List[SourcedText]) -> SourcedText:
     sources = [s for t in texts for s in t.sources]
 
     return SourcedText(
-        binary_text=binary_text,
-        pos=pos,
-        doc=doc,
-        sources=sources,
+        binary_text=binary_text, pos=pos, doc=doc, sources=sources,
     )
 
 
@@ -386,8 +400,5 @@ def filter_texts(
     if not isinstance(t.doc, int):
         doc = t.doc[new2old]
     return SourcedText(
-        binary_text=binary_text,
-        pos=pos,
-        doc=doc,
-        sources=t.sources,
+        binary_text=binary_text, pos=pos, doc=doc, sources=t.sources,
     )

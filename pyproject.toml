@@ -30,5 +30,8 @@ classifiers = [
 "Homepage" = "https://github.com/k2-fsa/text_search"
 "Bug Tracker" = "https://github.com/k2-fsa/text_search/issues"
 
+[tool.black]
+line-length = 80
+
 
 

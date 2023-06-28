@@ -41,7 +41,9 @@ def row_ids_to_row_splits(row_ids: np.ndarray) -> np.ndarray:
 
 
 def is_overlap(
-    ranges: List[Tuple[int, int]], query: Tuple[int, int], overlap_ratio: float = 0.5
+    ranges: List[Tuple[int, int]],
+    query: Tuple[int, int],
+    overlap_ratio: float = 0.5,
 ) -> bool:
     """
     Return if the given range overlaps with the existing ranges.
@@ -69,18 +71,23 @@ def is_overlap(
         if ranges:
             is_overlap = (
                 query[1] - ranges[0][0]
-                > min(ranges[0][1] - ranges[0][0], query[1] - query[0]) * overlap_ratio
+                > min(ranges[0][1] - ranges[0][0], query[1] - query[0])
+                * overlap_ratio
             )
     elif index == len(ranges):
         is_overlap = (
             ranges[index - 1][1] - query[0]
-            > min(ranges[index - 1][1] - ranges[index - 1][0], query[1] - query[0])
+            > min(
+                ranges[index - 1][1] - ranges[index - 1][0], query[1] - query[0]
+            )
             * overlap_ratio
         )
     else:
         is_overlap = (
             ranges[index - 1][1] - query[0]
-            > min(ranges[index - 1][1] - ranges[index - 1][0], query[1] - query[0])
+            > min(
+                ranges[index - 1][1] - ranges[index - 1][0], query[1] - query[0]
+            )
             * overlap_ratio
         ) or (
             query[1] - ranges[index][0]
