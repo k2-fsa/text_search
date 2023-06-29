@@ -19,7 +19,9 @@ from typing import List, Tuple
 
 
 def get_nice_alignments(
-    alignments: List[Tuple[int, int, str]], query: np.ndarray, target: np.ndarray
+    alignments: List[Tuple[int, int, str]],
+    query: np.ndarray,
+    target: np.ndarray,
 ) -> List[str]:
     """
     Get the alignment of the matched segments.
@@ -41,8 +43,8 @@ def get_nice_alignments(
         - ``*``: empty
         - ``+``: insertion
         - ``-``: deletion
-        - ``#``: replacement
-        - ``|``: equal.
+        - ``#``: substitution
+        - ``|``: correct.
 
     **Example 1/2**
 

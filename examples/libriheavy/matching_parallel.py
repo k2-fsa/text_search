@@ -159,7 +159,7 @@ def aligner(
             logging.error(f"Worker[{worker_index}] caught {type(e)}: e")
             continue
     barrier.wait()
-    if thread_index == 0:
+    if worker_index == 0:
         # Only need to put one None to align_queue, we will handle the existing
         # of multiple splitter in splitter thread.
         align_queue.put(None)
@@ -222,7 +222,7 @@ def splitter(
             )
             continue
     barrier.wait()
-    if thread_index == 0:
+    if worker_index == 0:
         write_queue.put(None)
     logging.info(f"Worker[{worker_index}] splitter done.")
 

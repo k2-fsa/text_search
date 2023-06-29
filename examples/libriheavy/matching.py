@@ -81,7 +81,7 @@ def get_params() -> AttributeDict:
             "min_duration": 2,
             "max_duration": 30,
             "expected_duration": (5, 20),
-            "max_error_rate": 0.15,
+            "max_error_rate": 0.20,
         }
     )
 
@@ -321,6 +321,7 @@ def write(
                 custom={
                     "texts": [seg["ref"], seg["hyp"]],
                     "pre_texts": [seg["pre_ref"], seg["pre_hyp"]],
+                    "post_texts": [seg["post_ref"], seg["post_ref"]],
                     "begin_byte": seg["begin_byte"],
                     "end_byte": seg["end_byte"],
                 },
@@ -374,10 +375,7 @@ def process_one_batch(
         logging.info("Splitted data is empty.")
         return
     write(
-        params,
-        batch_cuts=batch_cuts,
-        results=splited_data,
-        cuts_writer=cuts_writer,
+        batch_cuts=batch_cuts, results=splited_data, cuts_writer=cuts_writer,
     )
 
 

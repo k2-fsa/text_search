@@ -301,20 +301,19 @@ def _combine_sub_alignments(
             target_start + target_align_end + 1,
         )
 
-        query_id = sourced_text.doc[query_start]
+        query_doc_id = sourced_text.doc[query_start]
 
-        if alignments[query_id] is None:
-            alignments[query_id] = (
+        if alignments[query_doc_id] is None:
+            alignments[query_doc_id] = (
                 (query_start, target_start + target_align_start),
                 [],
             )
 
-        query_doc_id = sourced_text.doc[query_start]
         query_base = sourced_text.doc_splits[query_doc_id]
         query_source = sourced_text.sources[query_doc_id]
 
         # aligns : [{"ref": , "hyp": , "ref_pos": , "hyp_pos": , "hyp_time":}]
-        aligns = alignments[query_id][1]
+        aligns = alignments[query_doc_id][1]
         # Note: query_source could be TextSource or Transcript, only Transcript
         # has times.
         times = (
@@ -323,16 +322,12 @@ def _combine_sub_alignments(
         # The times is in byte level.
         time_stride = 1 if query_source.binary_text.dtype == np.uint8 else 4
 
-        query_length = query_end - query_start
+        query_base_next = sourced_text.doc_splits[query_doc_id + 1]
+        query_length = query_base_next - query_base
         query_local_index = query_start - query_base
         query_index = query_start
         target_index = target_start + target_align_start
 
-        hyp_time = (
-            0
-            if times is None
-            else float(times[query_local_index * time_stride])
-        )
         for ali in align_str:
             query_local_index = (
                 query_local_index
@@ -450,13 +445,13 @@ def align_queries(
       document, `hyp_time` is the timestamp of `hyp`.
     """
 
-    logging.info(
+    logging.debug(
         f"Creating suffix array on a sequence with length : "
         f"{sourced_text.binary_text.size}."
     )
     suffix_array = create_suffix_array(sourced_text.binary_text)
 
-    logging.info(
+    logging.debug(
         f"Finding close matches for {num_query_tokens} query tokens with "
         f"num_close_matches={num_close_matches}."
     )
@@ -471,7 +466,7 @@ def align_queries(
     )
     num_queries = sourced_text.doc[tot_query_symbols]
 
-    logging.info(f"Getting alignments for {num_queries} queries.")
+    logging.debug(f"Getting alignments for {num_queries} queries.")
 
     row_splits = sourced_text.doc_splits
     arguments = []
@@ -560,10 +555,10 @@ def align_queries(
         }
 
     pool = ThreadPool() if thread_pool is None else thread_pool
-    logging.info(f"Matching with levenshtein for {len(arguments)} segments.")
+    logging.debug(f"Matching with levenshtein for {len(arguments)} segments.")
     async_results = pool.starmap_async(levenshtein_worker, arguments)
     results = async_results.get()
-    logging.info("Matching with levenshtein done.")
+    logging.debug("Matching with levenshtein done.")
 
     alignments = _combine_sub_alignments(sourced_text, results, num_queries)
 
@@ -1151,9 +1146,11 @@ def split_aligned_queries(
     Split the query into smaller segments.
     """
     arguments = []
+    aligned_length = 0
     for i in range(len(alignments)):
         if alignments[i] is not None:
-            (query_start, target_start), _ = alignments[i]
+            (query_start, target_start), aligns = alignments[i]
+            aligned_length += aligns[-1]["hyp_time"] - aligns[0]["hyp_time"]
             query_source = sourced_text.sources[sourced_text.doc[query_start]]
             target_source = sourced_text.sources[sourced_text.doc[target_start]]
             arguments.append(
@@ -1172,12 +1169,15 @@ def split_aligned_queries(
                     num_of_best_position,
                 )
             )
+    logging.debug(
+        f"Aligned length : {aligned_length} seconds for {len(arguments)} queries."
+    )
 
-    logging.info(f"Splitting into segments for {len(arguments)} queries.")
+    logging.debug(f"Splitting into segments for {len(arguments)} queries.")
     pool = Pool() if process_pool is None else process_pool
     async_results = pool.starmap_async(_split_helper, arguments)
     results = async_results.get()
-    logging.info(f"Splitting into segments done.")
+    logging.debug(f"Splitting into segments done.")
 
     return results
 
