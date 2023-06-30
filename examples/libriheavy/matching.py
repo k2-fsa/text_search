@@ -72,7 +72,7 @@ def get_params() -> AttributeDict:
             "num_close_matches": 2,
             "segment_length": 5000,
             "reference_length_difference": 0.1,
-            "min_matched_query_ratio": 0.33,
+            "min_matched_query_ratio": 0.5,
             # parameters for splitting aligned queries
             # you can find the docs in textsearch/match.py#split_aligned_queries
             "preceding_context_length": 1000,
@@ -119,7 +119,7 @@ def load_data(
     book_paths: Set[str] = set()
     num_query_tokens = 0
 
-    logging.info(f"Worker[{worker_index}] loading cuts and books")
+    logging.debug(f"Worker[{worker_index}] loading cuts and books")
     # Construct transcripts
     for i, cut in enumerate(batch_cuts):
         # No text book available, skip this cut.
@@ -165,7 +165,7 @@ def load_data(
     if not transcripts:
         return {}
 
-    logging.info(f"Worker[{worker_index}] loading cuts and books done.")
+    logging.debug(f"Worker[{worker_index}] loading cuts and books done.")
 
     sourced_transcript_lists = texts_to_sourced_texts(
         transcripts, uppercase=params.use_uppercase
@@ -185,7 +185,7 @@ def load_data(
 
     sourced_text = append_texts([sourced_transcripts, sourced_books])
 
-    logging.info(f"Worker[{worker_index}] construct sourced_text done.")
+    logging.debug(f"Worker[{worker_index}] construct sourced_text done.")
 
     assert num_query_tokens == sourced_text.doc_splits[len(transcripts)], (
         num_query_tokens,
@@ -226,7 +226,7 @@ def align(
       }
 
     """
-    logging.info(f"Worker[{worker_index}] Aligning queries.")
+    logging.debug(f"Worker[{worker_index}] Aligning queries.")
     alignments = align_queries(
         sourced_text,
         num_query_tokens=num_query_tokens,
@@ -236,7 +236,7 @@ def align(
         min_matched_query_ratio=params.min_matched_query_ratio,
         thread_pool=thread_pool,
     )
-    logging.info(f"Worker[{worker_index}] Aligning queries done.")
+    logging.debug(f"Worker[{worker_index}] Aligning queries done.")
 
     return alignments
 
@@ -266,7 +266,7 @@ def split(
           "segments": segments,  # The segmented results (contains cut_indexes).
       }
     """
-    logging.info(f"Worker[{worker_index}] Splitting aligned query.")
+    logging.debug(f"Worker[{worker_index}] Splitting aligned query.")
     segments = split_aligned_queries(
         sourced_text=sourced_text,
         alignments=alignments,
@@ -280,7 +280,7 @@ def split(
         expected_duration=params.expected_duration,
         max_error_rate=params.max_error_rate,
     )
-    logging.info(f"Worker[{worker_index}] Splitting aligned query done.")
+    logging.debug(f"Worker[{worker_index}] Splitting aligned query done.")
 
     return segments
 
@@ -337,11 +337,11 @@ def write(
             )
             cut_list.append(cut)
 
-    logging.info(f"Writing results.")
+    logging.debug(f"Writing results.")
     for i, cut in enumerate(cut_list):
         # Flushing only on last cut to accelerate writing.
         cuts_writer.write(cut, flush=(i == len(cut_list) - 1))
-    logging.info(f"Write results done.")
+    logging.debug(f"Write results done.")
 
 
 def process_one_batch(
@@ -353,7 +353,7 @@ def process_one_batch(
 ):
     raw_data = load_data(params, batch_cuts=batch_cuts)
     if len(raw_data) == 0:
-        logging.info("Raw data is empty.")
+        logging.warning("Raw data is empty.")
         return
     aligned_data = align(
         params,
@@ -362,7 +362,7 @@ def process_one_batch(
         thread_pool=thread_pool,
     )
     if len(aligned_data) == 0:
-        logging.info("Aligned data is empty.")
+        logging.warning("Aligned data is empty.")
         return
     splited_data = split(
         params,
@@ -372,7 +372,7 @@ def process_one_batch(
         process_pool=process_pool,
     )
     if len(splited_data) == 0:
-        logging.info("Splitted data is empty.")
+        logging.warning("Splitted data is empty.")
         return
     write(
         batch_cuts=batch_cuts, results=splited_data, cuts_writer=cuts_writer,

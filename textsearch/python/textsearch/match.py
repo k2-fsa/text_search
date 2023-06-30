@@ -518,8 +518,8 @@ def align_queries(
 
         if max_num_matches < min_matched_query_ratio * query_len:
             logging.warning(
-                f"Skipping query {q}, less than {min_matched_query_ratio} "
-                f"of query tokens matched in close_matches."
+                f"Skipping query {q}, less than {min_matched_query_ratio * 100}"
+                f"% of query tokens matched in close_matches."
             )
             continue
 
@@ -1134,7 +1134,7 @@ def split_aligned_queries(
     cut_indexes: List[Tuple[int, int]],
     process_pool: Optional[Pool] = None,
     preceding_context_length: int = 1000,
-    timestamp_position: str = "middle",  # previous, middle, current
+    timestamp_position: str = "current",  # previous, middle, current
     silence_length_to_break: float = 0.6,  # in second
     min_duration: float = 2,  # in second
     max_duration: float = 30,  # in second
