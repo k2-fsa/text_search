@@ -24,6 +24,7 @@ from multiprocessing.pool import ThreadPool
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
+import regex
 
 from _textsearch import (
     find_close_matches,
@@ -324,50 +325,30 @@ def _combine_sub_alignments(
 
         query_base_next = sourced_text.doc_splits[query_doc_id + 1]
         query_length = query_base_next - query_base
-        query_local_index = query_start - query_base
         query_index = query_start
         target_index = target_start + target_align_start
 
         for ali in align_str:
-            query_local_index = (
-                query_local_index
-                if query_local_index < query_length
-                else query_length - 1
+            query_index = (
+                query_index if query_index < query_end else query_end - 1
             )
+            hyp_pos = int(sourced_text.pos[query_index])
+
             hyp_time = (
-                0
-                if times is None
-                else float(times[query_local_index * time_stride])
+                0 if times is None else float(times[hyp_pos * time_stride])
             )
+
             target_index = (
                 target_index if target_index < target_end else target_end - 1
             )
             ref_pos = int(sourced_text.pos[target_index])
-            query_index = (
-                query_index if query_index < query_end else query_end - 1
-            )
             if ali == "I":
-                aligns.append(
-                    {
-                        "ref": "",
-                        "hyp": chr(sourced_text.binary_text[query_index]),
-                        "ref_pos": ref_pos,
-                        "hyp_pos": query_local_index,
-                        "hyp_time": hyp_time,
-                    }
-                )
-                query_local_index += 1
+                ref = ""
+                hyp = chr(sourced_text.binary_text[query_index])
                 query_index += 1
             elif ali == "D":
-                aligns.append(
-                    {
-                        "ref": chr(sourced_text.binary_text[target_index]),
-                        "hyp": "",
-                        "ref_pos": ref_pos,
-                        "hyp_pos": query_local_index,
-                        "hyp_time": hyp_time,
-                    }
-                )
+                ref = chr(sourced_text.binary_text[target_index])
+                hyp = ""
                 target_index += 1
             else:
                 assert ali == "C" or ali == "S"
@@ -379,18 +360,17 @@ def _combine_sub_alignments(
                     assert ref == hyp
                 else:
                     assert ref != hyp
-                aligns.append(
-                    {
-                        "ref": ref,
-                        "hyp": hyp,
-                        "ref_pos": ref_pos,
-                        "hyp_pos": query_local_index,
-                        "hyp_time": hyp_time,
-                    }
-                )
-                query_local_index += 1
                 query_index += 1
                 target_index += 1
+            aligns.append(
+                {
+                    "ref": ref,
+                    "hyp": hyp,
+                    "ref_pos": ref_pos,
+                    "hyp_pos": hyp_pos,
+                    "hyp_time": hyp_time,
+                }
+            )
     return alignments
 
 
@@ -414,12 +394,12 @@ def align_queries(
       sourced_text:
         The SourcedText containing the queries and references, the first N
         documents are queries and the others are references.
-      num_close_matches:
-        The number of close_matches for each query token.
       num_query_tokens:
         The number of query tokens in sourced_text, it tells the boundary between
         queries and references sourced_text[0:num_query_tokens] are query tokens,
         sourced_text[num_query_tokens:] are reference tokens.
+      num_close_matches:
+        The number of close_matches for each query token.
       segment_length:
         The query length might be long, in order to accelerate the levenshtein
         algorithm we will split the long query into smaller segments, `segment_length`
@@ -576,14 +556,20 @@ def _get_segment_candidates(
     min_duration: float = 2,  # in second
     max_duration: float = 30,  # in second
     expected_duration: Tuple[float, float] = (5, 20),  # in second
-    max_error_rate: float = 0.15,
+    max_error_rate: float = 0.20,
     num_of_best_position: int = 4,
 ) -> List[Tuple[int, int, float]]:
     """
     Split the long aligned query into smaller segments.
 
-    we create scores for each position in the alignment, corresponding to how good
-    a position it is to begin or end a split.
+    First, we get a list candidate breaking positions, these positions have
+    long enough preceding silence (begin a split) or succeeding silence (end of
+    a split), the length of silence is controlled by `silence_length_to_break`.
+    If the `target_source` has punctuations, we will only start or end of a
+    split at punctuation positions that indicate the end of a sentence.
+
+    we create scores for each candidate position in the alignment, corresponding
+    to how good a position it is to begin or end a split.
 
      - begin a split (i.e. this is first position in a segment)
         - plus score equal to num silence seconds this
@@ -611,22 +597,20 @@ def _get_segment_candidates(
     We then create a rule to assign scores to potential segments. This consist of
     the begin-scores, plus the end-scores, plus:
       - Some kind of penalty related to the duration of the segment, e.g.
-        infinity if it's over some max-duration like 30 seconds or less than a
-        min-duration like 2 seconds; else, one that encourages a duration between
-        5 to 20 seconds.
+        infinity if it's over some `max_duration` like 30 seconds or less than a
+        `min_duration` like 2 seconds; else, one that encourages a duration
+        between `expected_duration` like 5 to 20 seconds.
       - A bonus for the number of matches in the alignment.
       - A penalty for the number of errors in the alignment (could multiply this by
         some scale depending how much we don't want to have errors, but some errors
         are expected due to both ASR errors and normalization differences.)
 
-    Next, we can do a search for a good segmentation.  You could define the problem
-    as getting the highest-scoring set of segments that do not overlap.  One
-    possible way to do it is as follows:
-       For each begin_position in the top 10% of scores, find the 4 best-scoring
-       end_positions
-       For each end_position in the top 10% of scores, find the 4 best-scoring
-       begin_positions
-    Append the preceding 2 sets of segments to get a list of candidate segments.
+    Next, we search for a good segmentation. We define the problem as getting
+    the highest-scoring set of segments that do not overlap. For each
+    begin_position, find the `num_of_best_position` like 4 best-scoring
+    end_positions. For each end_position, find the `num_of_best_position`
+    best-scoring begin_positions. Append the preceding 2 sets of segments to get
+    a list of candidate segments.
 
     Args:
       target_source:
@@ -634,6 +618,30 @@ def _get_segment_candidates(
       alignment:
         Alignment information, one item of the returned alignments from
         `align_queries`.
+      silence_length_to_break:
+        A threshold for deciding the possible breaking points, if a position has
+        preceding or succeeding silence length greater than this value, we will
+        add it as a possible breaking point.
+        Caution: Only be used when there are no punctuations in target_source.
+      min_duration:
+        The minimum duration (in second) allowed for a segment.
+      max_duration:
+        The maximum duration (in second) allowed for a segment.
+      expected_duration:
+        The expected duration (in second) for a segment, it is a range (a tuple
+        containing lower bound and upper bound).
+        Note: The values must satisfy `min_duration <= expected_duration[0]` and
+        `max_duration >= expected_duration[1]`.
+      max_error_rate:
+        The max levenshtein distance (char level) between query and target at
+        the segment area, if the segments with higher error rate than this value
+        will not appear in the final result list.
+      num_of_best_position:
+        For each candidate breaking points, there will be several possible start
+        points (if the point is the end of segment) or end points (if the point
+        is the start of a segment), this is the number of possible points.
+        Normally this does not affect the final result too much, just leave it
+        as default is OK.
 
     Returns:
       Returns a list of tuple, each tuple contains the start position,
@@ -668,6 +676,13 @@ def _get_segment_candidates(
     # Use cumsum to get number of matches and errors in a range efficiently
     cumsum_match = [0] * len(aligns)
     cumsum_error = [0] * len(aligns)
+
+    # to avoid breaking at somethings like Mr. Mrs. etc.
+    period_patterns = regex.compile(
+        "(?<!Mr|Mrs|Dr|Ms|Prof|Pro|Capt|Gen|Sen|Rev|Hon|St)\."
+    )
+    # the largest length of the patterns.
+    period_pattern_length = 4
 
     for i, align in enumerate(aligns):
         matched = align["ref"] == align["hyp"]
@@ -718,8 +733,19 @@ def _get_segment_candidates(
         while j >= 0:
             current_token = chr(target_source.binary_text[j])
             if is_punctuation(current_token, eos_only=True):
-                prev_punctuation = punctuation_score
-                break
+                tmp = "".join(
+                    [
+                        chr(x)
+                        for x in target_source.binary_text[
+                            j - period_pattern_length : j + 1
+                        ]
+                    ]
+                )
+                if period_patterns.search(tmp) is not None:
+                    prev_punctuation = punctuation_score
+                    break
+                else:
+                    j -= 1
             elif current_token == " " or is_punctuation(current_token):
                 j -= 1
             else:
@@ -730,8 +756,19 @@ def _get_segment_candidates(
         while j < target_source.binary_text.size:
             current_token = chr(target_source.binary_text[j])
             if is_punctuation(current_token, eos_only=True):
-                succ_punctuation = punctuation_score
-                break
+                tmp = "".join(
+                    [
+                        chr(x)
+                        for x in target_source.binary_text[
+                            j - period_pattern_length : j + 1
+                        ]
+                    ]
+                )
+                if period_patterns.search(tmp) is not None:
+                    succ_punctuation = punctuation_score
+                    break
+                else:
+                    j += 1
             elif current_token == " " or is_punctuation(current_token):
                 j += 1
             else:
@@ -755,9 +792,11 @@ def _get_segment_candidates(
             if succ_punctuation > 0 or i == len(aligns) - 1:
                 end_scores.append((i, end_score,))
         else:
-            if prev_silence >= silence_length_to_break or i == 0:
+            if matched and (prev_silence >= silence_length_to_break or i == 0):
                 begin_scores.append((i, begin_score,))
-            if succ_silence >= silence_length_to_break or i == len(aligns) - 1:
+            if matched and (
+                succ_silence >= silence_length_to_break or i == len(aligns) - 1
+            ):
                 end_scores.append((i, end_score,))
 
     # (start, end, score)
@@ -934,7 +973,7 @@ def _get_segment_candidates(
 def _split_into_segments(
     query_source: Union[Transcript, TextSource],
     target_source: TextSource,
-    alignment,
+    alignment: Tuple[Tuple[int, int], List[Dict[str, Any]]],
     preceding_context_length: int = 1000,
     timestamp_position: str = "middle",  # previous, middle, current
     silence_length_to_break: float = 0.6,  # in second
@@ -960,9 +999,6 @@ def _split_into_segments(
         An instance of TextSource containing the matched reference.
       alignment:
         The alignment, an item in the list returned by `align_queries`.
-      min_text_length:
-        The minimum text length, if the number of characters is less than
-        `min_text_length`, the segment will be dropped.
       preceding_context_length:
         The number of characters of preceding context.
       timestamp_position:
@@ -972,6 +1008,46 @@ def _split_into_segments(
         `previous` the `start_time` is the timestamp of token in `begin_pos - 1`
         if it equals to `middle`, the `start_time` is the averaged timestamp of
         tokens in `begin_pos` and `begin_pos - 1`.
+      silence_length_to_break:
+        A threshold for deciding the possible breaking points, if a position has
+        preceding or succeeding silence length greater than this value, we will
+        add it as a possible breaking point.
+        Caution: Only be used when there are no punctuations in target_source.
+      min_duration:
+        The minimum duration (in second) allowed for a segment.
+      max_duration:
+        The maximum duration (in second) allowed for a segment.
+      expected_duration:
+        The expected duration (in second) for a segment, it is a range (a tuple
+        containing lower bound and upper bound).
+        Note: The values must satisfy `min_duration <= expected_duration[0]` and
+        `max_duration >= expected_duration[1]`.
+      max_error_rate:
+        The max levenshtein distance (char level) between query and target at
+        the segment area, if the segments with higher error rate than this value
+        will not appear in the final result list.
+      num_of_best_position:
+        For each candidate breaking points, there will be several possible start
+        points (if the point is the end of segment) or end points (if the point
+        is the start of a segment), this is the number of possible points.
+        Normally this does not affect the final result too much, just leave it
+        as default is OK.
+
+    Return
+      Returns a list of Dict containing the details of each segment, looks like
+
+         {
+             "begin_byte": int,   # begin position in original target source
+             "end_byte": int,     # end position in original target source
+             "start_time": float, # start timestamp in the audio
+             "duration": float,   # duration of this segment
+             "hyp": str,          # text from query source
+             "ref": str,          # text from target source
+             "pre_ref": str,      # preceding text from target source
+             "pre_hyp": str,      # preceding text from query source
+             "post_ref": str,     # succeeding text from target source
+             "post_hyp": str,     # succeeding text from query source
+         }
     """
     (query_start, target_start), aligns = alignment
 
@@ -1099,7 +1175,7 @@ def _split_helper(
     query_source: Union[TextSource, Transcript],
     target_source: TextSource,
     cut_index: Tuple[int, int],
-    alignment,
+    alignment: Tuple[Tuple[int, int], List[Dict[str, Any]]],
     preceding_context_length: int,
     timestamp_position: str,
     silence_length_to_break: float,
@@ -1130,7 +1206,7 @@ def _split_helper(
 
 def split_aligned_queries(
     sourced_text: SourcedText,
-    alignments,
+    alignments: List[Tuple[Tuple[int, int], List[Dict[str, Any]]]],
     cut_indexes: List[Tuple[int, int]],
     process_pool: Optional[Pool] = None,
     preceding_context_length: int = 1000,
@@ -1141,9 +1217,75 @@ def split_aligned_queries(
     expected_duration: Tuple[float, float] = (5, 20),  # in second
     max_error_rate: float = 0.15,
     num_of_best_position: int = 4,
-):
+) -> List[Dict[str, Union[str, int, float]]]:
     """
-    Split the query into smaller segments.
+    Split the aligned queries into smaller segments (A query might have several
+    hours of audio, which is not suitable for ASR training)
+
+    Args:
+      sourced_text:
+        The SourcedText containing the queries and references.
+      alignments:
+        The alignments returned by function align_queries. The length of it is
+        equals to the number of queries.
+      cut_indexes:
+        A list of tuple containing the original cut index and supervision index
+        of the query([(cut index, sup index)]), it satisfies
+        `len(cut_indexes) == len(alignments)`
+      process_pool:
+        The process pool to split aligned queries. The algorithms are
+        implemented in python, so we use process pool to get rid of the effect
+        of GIL.
+      preceding_context_length:
+        The number of characters of preceding context.
+      timestamp_position:
+        It indicates which token we will get `start_time` from, valid values are
+        `previous`, `middle` and `current`. If it equals to `current` the
+        `start_time` is the timestamp of token in `begin_pos`, if it equals to
+        `previous` the `start_time` is the timestamp of token in `begin_pos - 1`
+        if it equals to `middle`, the `start_time` is the averaged timestamp of
+        tokens in `begin_pos` and `begin_pos - 1`.
+      silence_length_to_break:
+        A threshold for deciding the possible breaking points, if a position has
+        preceding or succeeding silence length greater than this value, we will
+        add it as a possible breaking point.
+        Caution: Only be used when there are no punctuations in target_source.
+      min_duration:
+        The minimum duration (in second) allowed for a segment.
+      max_duration:
+        The maximum duration (in second) allowed for a segment.
+      expected_duration:
+        The expected duration (in second) for a segment, it is a range (a tuple
+        containing lower bound and upper bound).
+        Note: The values must satisfy `min_duration <= expected_duration[0]` and
+        `max_duration >= expected_duration[1]`.
+      max_error_rate:
+        The max levenshtein distance (char level) between query and target at
+        the segment area, if the segments with higher error rate than this value
+        will not appear in the final result list.
+      num_of_best_position:
+        For each candidate breaking points, there will be several possible start
+        points (if the point is the end of segment) or end points (if the point
+        is the start of a segment), this is the number of possible points.
+        Normally this does not affect the final result too much, just leave it
+        as default is OK.
+
+    Return:
+      Returns a list of Dict containing the details of each segment, looks like
+
+         {
+             "begin_byte": int,   # begin position in original target source
+             "end_byte": int,     # end position in original target source
+             "start_time": float, # start timestamp in the audio
+             "duration": float,   # duration of this segment
+             "hyp": str,          # text from query source
+             "ref": str,          # text from target source
+             "pre_ref": str,      # preceding text from target source
+             "pre_hyp": str,      # preceding text from query source
+             "post_ref": str,     # succeeding text from target source
+             "post_hyp": str,     # succeeding text from query source
+         }
+
     """
     arguments = []
     aligned_length = 0

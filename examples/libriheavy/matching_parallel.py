@@ -63,12 +63,11 @@ def dataloader(
     The item in data_queue is :
 
       {
-          "num_query_tokens": num_query_tokens, # the total number of tokens of queries
-          "cuts": batch_cuts,   # The cuts from cuts_queue
-          "cut_indexes": transcripts_cut_index, # A tuple of (cut index, supervision index)
-          "sourced_text": sourced_text, # The sourced_text constructed from batch_cuts.
+          "num_query_tokens": int, # the total number of tokens of queries
+          "cuts": List[MonoCut],   # The cuts from cuts_queue
+          "cut_indexes": Tuple[int, int], # A tuple of (cut index, supervision index)
+          "sourced_text": SourcedText, # The sourced_text constructed from batch_cuts.
       }
-
     """
     while True:
         try:
@@ -111,18 +110,18 @@ def aligner(
 
     The item in data_queue is:
       {
-          "num_query_tokens": num_query_tokens,      # the total number of tokens of queries
-          "cuts": batch_cuts,          # A list of MonoCut from cuts_queue
-          "cut_indexes": transcripts_cut_index, # A tuple of (cut index, supervision index)
-          "sourced_text": sourced_text, # The sourced_text constructed from batch_cuts.
+          "num_query_tokens": int,        # the total number of tokens of queries
+          "cuts": List[MonoCut],          # A list of MonoCut from cuts_queue
+          "cut_indexes": List[Tuple[int, int]], # A tuple of (cut index, supervision index)
+          "sourced_text": SourcedText,    # The sourced_text constructed from batch_cuts.
       }
 
     The item in align_queue is:
       {
-          "cuts": item["cuts"],  # A list of MonoCut inherited from data_queue.
-          "cut_indexes": item["cut_indexes"], # Inherit from data_queue.
+          "cuts": List[MonoCut],  # A list of MonoCut inherited from data_queue.
+          "cut_indexes": List[Tuple[int, int]], # Inherit from data_queue.
           "alignments": alignments,  # The alignment results.
-          "sourced_text": sourced_text, # Inherit from data_queue.
+          "sourced_text": SourcedText, # Inherit from data_queue.
       }
 
     """
@@ -179,15 +178,15 @@ def splitter(
 
     The item in align_queue is:
       {
-          "cuts": item["cuts"],  # A list of MonoCut inherited from data_queue.
-          "cut_indexes": item["cut_indexes"], # Inherit from data_queue.
+          "cuts": List[MonoCut],  # A list of MonoCut inherited from data_queue.
+          "cut_indexes": List[Tuple[int, int]], # Inherit from data_queue.
           "alignments": alignments,  # The alignment results.
-          "sourced_text": sourced_text, # Inherit from data_queue.
+          "sourced_text": SourcedText, # Inherit from data_queue.
       }
 
     The item in write_queue is:
       {
-          "cuts": item["cuts"],  # A list of MonoCut inherited from align_queue.
+          "cuts": List[MonoCut],  # A list of MonoCut inherited from align_queue.
           "segments": segments,  # The segmented results (contains cut_indexes).
       }
     """
@@ -228,14 +227,15 @@ def splitter(
 
 
 def writer(
-    write_queue: Queue, cuts_writer: SequentialJsonlWriter,
+    write_queue: Queue,
+    cuts_writer: SequentialJsonlWriter,
 ):
     """
     Write the segmented results to disk as new manifests.
 
     The item in write_queue is:
       {
-          "cuts": item["cuts"],  # A list of MonoCut inherited from align_queue.
+          "cuts": List[MonoCut],  # A list of MonoCut inherited from align_queue.
           "segments": segments,  # The segmented results (contains cut_indexes).
       }
     """
@@ -295,7 +295,13 @@ def main():
         dataloader_threads.append(
             Thread(
                 target=dataloader,
-                args=(i, params, cuts_queue, data_queue, dataloader_barrier,),
+                args=(
+                    i,
+                    params,
+                    cuts_queue,
+                    data_queue,
+                    dataloader_barrier,
+                ),
             )
         )
         dataloader_threads[-1].start()
@@ -340,7 +346,13 @@ def main():
         splitter_threads[-1].start()
 
     # only one thread to write results
-    writer_thread = Thread(target=writer, args=(write_queue, cuts_writer,),)
+    writer_thread = Thread(
+        target=writer,
+        args=(
+            write_queue,
+            cuts_writer,
+        ),
+    )
     writer_thread.start()
 
     batch_cuts = []

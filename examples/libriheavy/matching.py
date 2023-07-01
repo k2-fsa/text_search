@@ -6,7 +6,7 @@ from datetime import datetime
 from multiprocessing.pool import Pool
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
-from typing import Dict, List, Set, Optional, Tuple, Union
+from typing import Any, Dict, List, Set, Optional, Tuple, Union
 
 from lhotse import CutSet, MonoCut, SupervisionSegment, load_manifest_lazy
 from lhotse.serialization import SequentialJsonlWriter
@@ -72,12 +72,12 @@ def get_params() -> AttributeDict:
             "num_close_matches": 2,
             "segment_length": 5000,
             "reference_length_difference": 0.1,
-            "min_matched_query_ratio": 0.5,
+            "min_matched_query_ratio": 0.33,
             # parameters for splitting aligned queries
             # you can find the docs in textsearch/match.py#split_aligned_queries
             "preceding_context_length": 1000,
             "timestamp_position": "current",
-            "silence_length_to_break": 0.6,
+            "silence_length_to_break": 0.45,
             "min_duration": 2,
             "max_duration": 30,
             "expected_duration": (5, 20),
@@ -89,22 +89,28 @@ def get_params() -> AttributeDict:
 
 
 def load_data(
-    params: AttributeDict, batch_cuts: List[MonoCut], worker_index: int = 0,
-):
+    params: AttributeDict,
+    batch_cuts: List[MonoCut],
+    worker_index: int = 0,
+) -> Dict[str, Any]:
     """
     Load texts (the references) from disk, and construct the sourced_text object.
 
-    The item in cuts_queue is a list of MonoCut red from manifests.
+    Args:
+      params:
+        The parameters for matching.
+      batch_cuts:
+        A list of MonoCut red from manifests.
+      worker_index:
+        A identification of workers, just for logging.
 
-    The item in data_queue is :
-
-      {
-          "query_len": query_len,      # the total number of tokens of queries
-          "cuts": batch_cuts,          # The cuts from cuts_queue
-          "cut_indexes": transcripts_cut_index, # A tuple of (cut index, supervision index)
-          "sourced_text": sourced_text, # The sourced_text constructed from batch_cuts.
-      }
-
+    Return
+      Return a dict containing:
+        {
+            "num_query_tokens": int,        # the total number of tokens of queries
+            "cut_indexes": Tuple[int, int], # A tuple of (cut index, supervision index)
+            "sourced_text": SourcedText,    # The sourced_text constructed from batch_cuts.
+        }
     """
     # List of transcripts (total number of valid supervisions in the cuts).
     transcripts: List[Transcript] = []
@@ -209,22 +215,23 @@ def align(
     """
     Align each query in the sourced_text to its corresponding segment in references
 
-    The item in data_queue is:
-      {
-          "query_len": query_len,      # the total number of tokens of queries
-          "cuts": batch_cuts,          # A list of MonoCut from cuts_queue
-          "cut_indexes": transcripts_cut_index, # A tuple of (cut index, supervision index)
-          "sourced_text": sourced_text, # The sourced_text constructed from batch_cuts.
-      }
+    Args:
+      params:
+        The matching parameters.
+      num_query_tokens:
+        The number of total query tokens in current batch.
+      sourced_text:
+        The SourcedText constructed from current batch.
 
-    The item in align_queue is:
-      {
-          "cuts": item["cuts"],  # A list of MonoCut inherited from data_queue.
-          "cut_indexes": item["cut_indexes"], # Inherit from data_queue.
-          "alignments": alignments,  # The alignment results.
-          "sourced_text": sourced_text, # Inherit from data_queue.
-      }
-
+    Return:
+      Return a list of tuple containing
+      ((query_start, target_start), [alignment item]).
+      The `query_start` and `target_start` are indexes in sourced_text,
+      the `alignment item` is a list containing `{"ref": ref, "hyp": hyp,
+      "ref_pos": ref_pos, "hyp_pos": hyp_pos, "hyp_time": hyp_time}`, `ref` is
+      the token from reference, `hyp` is the token from query, `ref_pos` is
+      local index in reference document, `hyp_pos` is local index in query
+      document, `hyp_time` is the timestamp of `hyp`.
     """
     logging.debug(f"Worker[{worker_index}] Aligning queries.")
     alignments = align_queries(
@@ -252,19 +259,39 @@ def split(
     """
     Split the query into smaller segments.
 
-    The item in align_queue is:
-      {
-          "cuts": item["cuts"],  # A list of MonoCut inherited from data_queue.
-          "cut_indexes": item["cut_indexes"], # Inherit from data_queue.
-          "alignments": alignments,  # The alignment results.
-          "sourced_text": sourced_text, # Inherit from data_queue.
-      }
+    Args:
+      params:
+        The parameters for matching.
+      sourced_text:
+        An instance of SourcedText.
+      alignments:
+        Return from function `align`.
+      cut_indexes:
+        A list of tuple containing the original cut index and supervision index
+        of the query([(cut index, sup index)]), it satisfies
+        `len(cut_indexes) == len(alignments)`
+      process_pool:
+        The process pool to split aligned queries. The algorithms are
+        implemented in python, so we use process pool to get rid of the effect
+        of GIL.
+      worker_index:
+        A identification of workers, just for logging.
 
-    The item in write_queue is:
-      {
-          "cuts": item["cuts"],  # A list of MonoCut inherited from align_queue.
-          "segments": segments,  # The segmented results (contains cut_indexes).
-      }
+    Return:
+      Returns a list of Dict containing the details of each segment, looks like
+
+         {
+             "begin_byte": int,   # begin position in original target source
+             "end_byte": int,     # end position in original target source
+             "start_time": float, # start timestamp in the audio
+             "duration": float,   # duration of this segment
+             "hyp": str,          # text from query source
+             "ref": str,          # text from target source
+             "pre_ref": str,      # preceding text from target source
+             "pre_hyp": str,      # preceding text from query source
+             "post_ref": str,     # succeeding text from target source
+             "post_hyp": str,     # succeeding text from query source
+         }
     """
     logging.debug(f"Worker[{worker_index}] Splitting aligned query.")
     segments = split_aligned_queries(
@@ -286,16 +313,20 @@ def split(
 
 
 def write(
-    batch_cuts: List[MonoCut], results, cuts_writer: SequentialJsonlWriter,
+    batch_cuts: List[MonoCut],
+    results,
+    cuts_writer: SequentialJsonlWriter,
 ):
     """
     Write the segmented results to disk as new manifests.
 
-    The item in write_queue is:
-      {
-          "cuts": item["cuts"],  # A list of MonoCut inherited from align_queue.
-          "segments": segments,  # The segmented results (contains cut_indexes).
-      }
+    Args:
+      batch_cuts:
+        The original batch cuts.
+      results:
+        Returned from `split`.
+      cuts_writer:
+        The writer used to write the new manifests out.
     """
     cut_segment_index: Dict[str, int] = {}
     cut_list = []
@@ -375,7 +406,9 @@ def process_one_batch(
         logging.warning("Splitted data is empty.")
         return
     write(
-        batch_cuts=batch_cuts, results=splited_data, cuts_writer=cuts_writer,
+        batch_cuts=batch_cuts,
+        results=splited_data,
+        cuts_writer=cuts_writer,
     )
 
 
