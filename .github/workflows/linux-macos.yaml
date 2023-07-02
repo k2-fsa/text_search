@@ -49,7 +49,7 @@ jobs:
       - name: Install Python dependencies
         shell: bash
         run: |
-          python3 -m pip install numpy
+          python3 -m pip install numpy regex
 
       - name: Configure CMake
         shell: bash
