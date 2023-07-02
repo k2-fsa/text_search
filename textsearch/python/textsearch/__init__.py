@@ -12,7 +12,6 @@ from .datatypes import texts_to_sourced_texts
 from .levenshtein import get_nice_alignments
 
 from .match import align_queries
-from .match import find_candidate_matches
 from .match import get_longest_increasing_pairs
 from .match import split_aligned_queries
 
