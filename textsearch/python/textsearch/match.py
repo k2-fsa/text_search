@@ -1071,7 +1071,9 @@ def _split_into_segments(
     selected_ranges: List[Tuple[int, int]] = []
     segments = []
     for r in candidates:
-        if not is_overlap(selected_ranges, (r[0], r[1])):
+        if not is_overlap(
+            selected_ranges, query=(r[0], r[1]), overlap_ratio=0.25
+        ):
             segments.append(r)
 
     results = []

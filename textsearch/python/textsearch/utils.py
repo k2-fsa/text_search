@@ -43,7 +43,7 @@ def row_ids_to_row_splits(row_ids: np.ndarray) -> np.ndarray:
 def is_overlap(
     ranges: List[Tuple[int, int]],
     query: Tuple[int, int],
-    overlap_ratio: float = 0.5,
+    overlap_ratio: float = 0.25,
 ) -> bool:
     """
     Return if the given range overlaps with the existing ranges.
