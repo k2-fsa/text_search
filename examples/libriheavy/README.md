@@ -10,26 +10,52 @@ It has three subsets, small (577 hours), medium (5193 hours), large (51934 hours
 ### Texts
 
 For each audio in librilight, there is a `json` manifest containing the librivox link
-of current audio, you can download the text book via this link. We provide a eaxmple
-scirpt `download_text.py`, it is not perfect though, you might need to change some
-code during the downloading. We will try to give a fully automatic downloading script
-later.
+of current audio, you can download the text book via this link. We provide several
+scripts in `scripts` directory showing how to get the cleaned texts.
+
+```
+.
+|-- download_text.py    # download raw text via librivox link.
+|-- clean.py            # clean the downloaded raw text, for example, removing html tags
+`-- recording2book.py   # map audio to text
+```
+
+Caution: All the three scripts above are not ready for using, data downloading and
+cleaning are very hassle, we changed the scripts during the process. We will try
+to give a fully automatic downloading script later.
+
+If you don't want to download and clean the data by yourself, we provide a cleaned
+version of texts data which is available at https://huggingface.co/datasets/pkufool/librilight-text
+
+The download command:
+
+```
+git lfs install
+git clone https://huggingface.co/datasets/pkufool/librilight-text
+```
 
 
 ## Prepare manifests
 
-**HINT:** You don't have to run this stage separately, it is already included in the next stage, the following documents just shows you
-the details of this stage.
+Note: You need to install [lhotse](https://github.com/lhotse-speech/lhotse) to prepare manifests.
 
-Use the lhotse changes in this branch: https://github.com/yfyeung/lhotse/tree/librilight
-
-Run the command below:
+You can do it as follows:
 
 ```
-lhotse prepare librilight audio-dir book-dir output-dir -j 16
+pip install lhotse
 ```
 
-The audio-dir is the audios directory, each subdirectory contains a subset of data, it looks like:
+To prepare the manifests, run the following command:
+
+```
+python prepare_manifest.py \
+    --corpus-dir CORPUS_DIR \
+    --books-dir BOOKS_DIR \
+    --output-dir OUTPUT-DIR \
+    --num-jobs 16
+```
+
+The `CORPUS_DIR` is the audios directory, each subdirectory contains a subset of data, it looks like:
 ```
 .
 |-- large
@@ -37,8 +63,8 @@ The audio-dir is the audios directory, each subdirectory contains a subset of da
 `-- small
 ```
 
-The book-dir is the books directory, it has three subdirectories, each for a subset of librilight, it also
-has three json files indicating the relationship between recordings and books.
+The `BOOKS_DIR` is the books directory, it has three subdirectories, each for a subset of librilight, it also
+has three json files indicating the relationship between audios and books.
 
 ```
 .
@@ -63,18 +89,12 @@ The recording2book_{small,medium,large}.json look like this {recordingid: book_p
 }
 ```
 
-This stage generates two manifests, librilight_suppervisons_{small,medium,large}.jsonl.gz, librilight_recording_{small,medium,large}.jsonl.gz
+This stage generates three manifests, librilight_cut_{small,medium,large}.jsonl.gz
 
-
-The recording one looks like (only one line of it):
+The cuts look like this (only one line of it):
 
 ```
-{"id": "small/100/sea_fairies_0812_librivox_64kb_mp3/01_baum_sea_fairies_64kb", "sources": [{"type": "file", "channels": [0], "source": "/star-kw/data/libri-light/small/100/sea_fairies_0812_librivox_64kb_mp3/01_baum_sea_fairies_64kb.flac"}], "sampling_rate": 16000, "num_samples": 9567080, "duration": 597.9425, "channel_ids": [0]}
-```
-
-The supervision one looks like:
-```
-{"id": "small/100/sea_fairies_0812_librivox_64kb_mp3/01_baum_sea_fairies_64kb", "recording_id": "small/100/sea_fairies_0812_librivox_64kb_mp3/01_baum_sea_fairies_64kb","start": 0.0, "duration": 597.9425, "channel": 0, "language": "English", "speaker": "100", "custom": {"book": "/ceph-data3/xiaoyu/librilight_text/output_text_small_cleaned/Sea Fairies/text.txt"}}
+{"id": "small/100/sea_fairies_0812_librivox_64kb_mp3/01_baum_sea_fairies_64kb", "start": 0.0, "duration": 597.9425, "channel": 0, "supervisions": [{"id": "small/100/sea_fairies_0812_librivox_64kb_mp3/01_baum_sea_fairies_64kb", "recording_id": "small/100/sea_fairies_0812_librivox_64kb_mp3/01_baum_sea_fairies_64kb", "start": 0.0, "duration": 597.9425, "channel": 0, "language": "English", "speaker": "100"}], "recording": {"id": "small/100/sea_fairies_0812_librivox_64kb_mp3/01_baum_sea_fairies_64kb", "sources": [{"type": "file", "channels": [0], "source": "/star-kw/data/libri-light/small/100/sea_fairies_0812_librivox_64kb_mp3/01_baum_sea_fairies_64kb.flac"}], "sampling_rate": 16000, "num_samples": 9567080, "duration": 597.9425, "channel_ids": [0]}, "custom": {"text_path": "/ceph-data3/xiaoyu/librilight_text/output_text_small_cleaned/Sea Fairies/text.txt"}, "type": "MonoCut"}
 ```
 
 
