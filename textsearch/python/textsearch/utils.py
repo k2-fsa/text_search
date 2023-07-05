@@ -1,7 +1,13 @@
+import os
+import logging
 from bisect import bisect_left
-from typing import List, Tuple
+from typing import List, Optional, Tuple, Union
+from datetime import datetime
+from pathlib import Path
 import numpy as np
 from _textsearch import row_ids_to_row_splits as _row_ids_to_row_splits
+
+Pathlike = Union[str, Path]
 
 
 class AttributeDict(dict):
@@ -18,6 +24,60 @@ class AttributeDict(dict):
             del self[key]
             return
         raise AttributeError(f"No such attribute '{key}'")
+
+
+def setup_logger(
+    log_filename: Pathlike,
+    log_level: str = "info",
+    dist: Optional[Tuple[int, int]] = None,
+    use_console: bool = True,
+) -> None:
+    """Setup log level.
+
+    Args:
+      log_filename:
+        The filename to save the log.
+      log_level:
+        The log level to use, e.g., "debug", "info", "warning", "error",
+        "critical"
+      use_console:
+        True to also print logs to console.
+    """
+    now = datetime.now()
+    date_time = now.strftime("%Y-%m-%d-%H-%M-%S")
+    if dist is not None:
+        rank, world_size = dist
+        formatter = f"%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] ({rank}/{world_size}) %(message)s"  # noqa
+        log_filename = f"{log_filename}-{date_time}-{rank}"
+    else:
+        formatter = (
+            "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+        )
+        log_filename = f"{log_filename}-{date_time}"
+
+    os.makedirs(os.path.dirname(log_filename), exist_ok=True)
+
+    level = logging.ERROR
+    if log_level == "debug":
+        level = logging.DEBUG
+    elif log_level == "info":
+        level = logging.INFO
+    elif log_level == "warning":
+        level = logging.WARNING
+    elif log_level == "critical":
+        level = logging.CRITICAL
+
+    logging.basicConfig(
+        filename=log_filename,
+        format=formatter,
+        level=level,
+        filemode="w",
+    )
+    if use_console:
+        console = logging.StreamHandler()
+        console.setLevel(level)
+        console.setFormatter(logging.Formatter(formatter))
+        logging.getLogger("").addHandler(console)
 
 
 def row_ids_to_row_splits(row_ids: np.ndarray) -> np.ndarray:
@@ -113,3 +173,22 @@ def is_punctuation(c: str, eos_only: bool = False) -> bool:
     if eos_only:
         return c in ".?!"
     return c in ',.;?!():-<>-/"'
+
+
+def str2bool(v):
+    """Used in argparse.ArgumentParser.add_argument to indicate
+    that a type is a bool type and user can enter
+
+        - yes, true, t, y, 1, to represent True
+        - no, false, f, n, 0, to represent False
+
+    See https://stackoverflow.com/questions/15008758/parsing-boolean-values-with-argparse  # noqa
+    """
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ("yes", "true", "t", "y", "1"):
+        return True
+    elif v.lower() in ("no", "false", "f", "n", "0"):
+        return False
+    else:
+        raise argparse.ArgumentTypeError("Boolean value expected.")
