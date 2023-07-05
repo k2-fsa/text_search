@@ -39,9 +39,9 @@ def get_args():
     )
 
     parser.add_argument(
-        "--manifest-out-dir",
+        "--manifest-out",
         type=Path,
-        help="Path to directory to save splitted chunks.",
+        help="Path to the save splitted manifest.",
     )
 
     parser.add_argument(
@@ -65,16 +65,18 @@ def main():
     args = get_args()
     logging.info(vars(args))
 
-    manifest_out_dir = args.manifest_out_dir
+    if args.manifest_in == args.manifest_out:
+        logging.error(
+            f"Input manifest and output manifest share the same path : "
+            f"{args.manifest_in}, the filenames should be different."
+        )
+
+    manifest_out_dir = args.manifest_out.parents[0]
     manifest_out_dir.mkdir(parents=True, exist_ok=True)
 
     logging.info(f"Processing {args.manifest_in}.")
 
-    manifest_out = (
-        manifest_out_dir
-        / f"{str(args.manifest_in.name).replace('.jsonl.gz', '')}_chunk.jsonl.gz"
-    )
-    if manifest_out.is_file():
+    if args.manifest_out.is_file():
         logging.info(f"{manifest_out} already exists - skipping.")
         return
 
@@ -85,8 +87,8 @@ def main():
     )
     cuts = cuts.fill_supervisions(shrink_ok=True)
 
-    cuts.to_file(manifest_out)
-    logging.info(f"Cuts saved to {manifest_out}")
+    cuts.to_file(args.manifest_out)
+    logging.info(f"Cuts saved to {args.manifest_out}")
 
 
 if __name__ == "__main__":

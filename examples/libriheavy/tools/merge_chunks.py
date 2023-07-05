@@ -26,13 +26,10 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import List
 
-import sentencepiece as spm
 from lhotse import (
     CutSet,
     MonoCut,
     SupervisionSegment,
-    SupervisionSet,
-    load_manifest,
     load_manifest_lazy,
 )
 from lhotse.cut import Cut
@@ -43,23 +40,14 @@ def get_parser():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "--bpe-model",
-        type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
-    )
-
-    parser.add_argument(
-        "--manifest-in-dir",
+        "--manifest-in",
         type=Path,
-        default=Path("data/librilight/manifests_chunk_recog"),
         help="Path to directory of chunk cuts with recognition results.",
     )
 
     parser.add_argument(
-        "--manifest-out-dir",
+        "--manifest-out",
         type=Path,
-        default=Path("data/manifests"),
         help="Path to directory to save full utterance by merging overlapped chunks.",
     )
 
@@ -75,9 +63,7 @@ def get_parser():
 
 def merge_chunks(
     cuts_chunk: CutSet,
-    supervisions: SupervisionSet,
     cuts_writer: SequentialJsonlWriter,
-    sp: spm.SentencePieceProcessor,
     extra: float,
 ) -> int:
     """Merge chunk-wise cuts accroding to recording ids.
@@ -85,38 +71,35 @@ def merge_chunks(
     Args:
       cuts_chunk:
         The chunk-wise cuts opened in a lazy mode.
-      supervisions:
-        The supervision manifest containing text file path, opened in a lazy mode.
       cuts_writer:
         Writer to save the cuts with recognition results.
-      sp:
-        The BPE model.
       extra:
         Extra duration (in seconds) to drop at both sides of each chunk.
     """
 
     #  Background worker to add alignemnt and save cuts to disk.
-    def _save_worker(utt_cut: Cut, flush=False):
-        cuts_writer.write(utt_cut, flush=flush)
+    def _save_worker(utt_cut: Cut):
+        cuts_writer.write(utt_cut, flush=True)
 
     def _merge(cut_list: List[Cut], rec_id: str, utt_idx: int):
         """Merge chunks with same recording_id."""
-        for cut in cut_list:
-            assert cut.recording.id == rec_id, (cut.recording.id, rec_id)
-
         # For each group with a same recording, sort it accroding to the start time
         # In fact, we don't need to do this since the cuts have been sorted
         # according to the start time
         cut_list = sorted(cut_list, key=(lambda cut: cut.start))
 
+        assert len(cut_list) > 0, len(cut_list)
         rec = cut_list[0].recording
         alignments = []
         cur_end = 0
         for cut in cut_list:
+            assert cut.recording.id == rec_id, (cut.recording.id, rec_id)
             # Get left and right borders
             left = cut.start + extra if cut.start > 0 else 0
             chunk_end = cut.start + cut.duration
-            right = chunk_end - extra if chunk_end < rec.duration else rec.duration
+            right = (
+                chunk_end - extra if chunk_end < rec.duration else rec.duration
+            )
 
             # Assert the chunks are continuous
             assert left == cur_end, (left, cur_end)
@@ -128,11 +111,7 @@ def merge_chunks(
                 if left <= t < right:
                     alignments.append(ali.with_offset(cut.start))
 
-        old_sup = supervisions[rec_id]
-        # Assuming the supervisions are sorted with the same recoding order as in cuts_chunk
-        # old_sup = supervisions[utt_idx]
-        assert old_sup.recording_id == rec_id, (old_sup.recording_id, rec_id)
-
+        old_sup = cut_list[0].supervisions[0]
         new_sup = SupervisionSegment(
             id=rec_id,
             recording_id=rec_id,
@@ -152,7 +131,7 @@ def merge_chunks(
             supervisions=[new_sup],
         )
         # Set a custom attribute to the cut
-        utt_cut.text_path = old_sup.book
+        utt_cut.text_path = cut_list[0].text_path
 
         return utt_cut
 
@@ -201,40 +180,32 @@ def merge_chunks(
 def main():
     args = get_parser()
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(args.bpe_model)
+    logging.info(f"Processing {args.manifest_in}.")
 
-    # It contains "librilight_recordings_*.jsonl.gz" and "librilight_supervisions_small.jsonl.gz"
-    manifest_out_dir = args.manifest_out_dir
-
-    subsets = ["small", "median", "large"]
-
-    for subset in subsets:
-        logging.info(f"Processing {subset} subset")
-
-        manifest_out = manifest_out_dir / f"librilight_cuts_{subset}.jsonl.gz"
-        if manifest_out.is_file():
-            logging.info(f"{manifest_out} already exists - skipping.")
-            continue
-
-        supervisions = load_manifest(
-            manifest_out_dir / f"librilight_supervisions_{subset}.jsonl.gz"
-        )  # We will use the text path from supervisions
-
-        cuts_chunk = load_manifest_lazy(
-            args.manifest_in_dir / f"librilight_cuts_{subset}.jsonl.gz"
+    if args.manifest_in == args.manifest_out:
+        logging.error(
+            f"Input manifest and output manifest share the same path : "
+            f"{args.manifest_in}, the filenames should be different."
         )
 
-        cuts_writer = CutSet.open_writer(manifest_out, overwrite=True)
-        num_utt = merge_chunks(
-            cuts_chunk, supervisions, cuts_writer=cuts_writer, sp=sp, extra=args.extra
-        )
-        cuts_writer.close()
-        logging.info(f"{num_utt} cuts saved to {manifest_out}")
+    if args.manifest_out.is_file():
+        logging.info(f"{args.manifest_out} already exists - skipping.")
+        return
+
+    cuts_chunk = load_manifest_lazy(args.manifest_in)
+
+    cuts_writer = CutSet.open_writer(args.manifest_out, overwrite=True)
+    num_utt = merge_chunks(
+        cuts_chunk, cuts_writer=cuts_writer, extra=args.extra
+    )
+    cuts_writer.close()
+    logging.info(f"{num_utt} cuts saved to {args.manifest_out}")
 
 
 if __name__ == "__main__":
-    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    formatter = (
+        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    )
     logging.basicConfig(format=formatter, level=logging.INFO)
 
     main()

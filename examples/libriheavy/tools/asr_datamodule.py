@@ -42,7 +42,7 @@ class SpeechRecognitionDataset(K2SpeechRecognitionDataset):
     def __init__(
         self,
         return_cuts: bool = False,
-        input_strategy: BatchIO = OnTheFlyFeatures(),
+        input_strategy: BatchIO = OnTheFlyFeatures(Fbank()),
     ):
         super().__init__(return_cuts=return_cuts, input_strategy=input_strategy)
 

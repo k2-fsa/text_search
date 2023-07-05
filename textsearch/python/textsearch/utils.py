@@ -1,12 +1,11 @@
 import os
 import logging
 from bisect import bisect_left
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 from datetime import datetime
 from pathlib import Path
 import numpy as np
 from _textsearch import row_ids_to_row_splits as _row_ids_to_row_splits
-import torch.distributed as dist
 
 Pathlike = Union[str, Path]
 
@@ -30,6 +29,7 @@ class AttributeDict(dict):
 def setup_logger(
     log_filename: Pathlike,
     log_level: str = "info",
+    dist: Optional[Tuple[int, int]] = None,
     use_console: bool = True,
 ) -> None:
     """Setup log level.
@@ -45,9 +45,8 @@ def setup_logger(
     """
     now = datetime.now()
     date_time = now.strftime("%Y-%m-%d-%H-%M-%S")
-    if dist.is_available() and dist.is_initialized():
-        world_size = dist.get_world_size()
-        rank = dist.get_rank()
+    if dist is not None:
+        rank, world_size = dist
         formatter = f"%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] ({rank}/{world_size}) %(message)s"  # noqa
         log_filename = f"{log_filename}-{date_time}-{rank}"
     else:

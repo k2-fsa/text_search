@@ -21,15 +21,15 @@ This script loads torchscript models, exported by `torch.jit.script()`,
 and uses them to decode waves.
 You can use the following command to get the exported models:
 
-./pruned_transducer_stateless7/export.py \
-  --exp-dir ./pruned_transducer_stateless7/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+./zipformer/export.py \
+  --exp-dir ./zipformer/exp \
+  --tokens data/lang_bpe_500/tokens.txt \
   --epoch 20 \
   --avg 10 \
   --jit 1
 
 You can also download the jit model from
-https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11
+https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
 """
 
 import argparse
@@ -47,7 +47,7 @@ from asr_datamodule import AsrDataModule
 from beam_search import greedy_search_batch
 from utils import SymbolTable, convert_timestamp
 
-from lhotse import CutSet, load_manifest_lazy
+from lhotse import CutSet, combine, load_manifest_lazy
 from lhotse.cut import Cut
 from lhotse.supervision import AlignmentItem
 from lhotse.serialization import SequentialJsonlWriter
@@ -92,12 +92,6 @@ def get_parser():
         default=12354,
         help="Master port to use for DDP training.",
     )
-    parser.add_argument(
-        "--subset",
-        type=str,
-        default="small",
-        help="Subset to process. Possible values are 'small', 'medium', 'large'",
-    )
 
     parser.add_argument(
         "--manifest-in",
@@ -106,9 +100,9 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--manifest-out-dir",
+        "--manifest-out",
         type=Path,
-        help="Path to directory to save the chunk cuts with recognition results.",
+        help="Path to output manifest containing recognition results.",
     )
 
     parser.add_argument(
@@ -313,7 +307,10 @@ def run(rank, world_size, args, in_cuts):
     params = get_params()
     params.update(vars(args))
 
-    setup_logger(f"{params.log_dir}/log-decode")
+    setup_logger(
+        f"{params.log_dir}/log-decode",
+        dist=(rank, world_size) if world_size > 1 else None,
+    )
     logging.info("Decoding started")
 
     assert params.decoding_method in ("greedy_search",), params.decoding_method
@@ -343,7 +340,7 @@ def run(rank, world_size, args, in_cuts):
     if world_size > 1:
         in_cuts = in_cuts[rank]
         out_cuts_filename = params.manifest_out_dir / (
-            f"{params.cuts_filename}_job_{rank}" + params.suffix
+            f"split/{params.cuts_filename}_{rank}" + params.suffix
         )
     else:
         out_cuts_filename = params.manifest_out_dir / (
@@ -371,27 +368,25 @@ def main():
     AsrDataModule.add_arguments(parser)
     args = parser.parse_args()
 
-    manifest_out_dir = args.manifest_out_dir
-    manifest_out_dir.mkdir(parents=True, exist_ok=True)
+    if args.manifest_in == args.manifest_out:
+        logging.error(
+            f"Input manifest and output manifest share the same path : "
+            f"{args.manifest_in}, the filenames should be different."
+        )
 
-    in_cuts_filename = args.manifest_in
-    assert in_cuts_filename.is_file(), in_cuts_filename
+    args.manifest_out_dir = args.manifest_out.parents[0]
+    args.manifest_out_dir.mkdir(parents=True, exist_ok=True)
+
+    assert args.manifest_in.is_file(), args.manifest_in
 
     args.suffix = ".jsonl.gz"
-    args.cuts_filename = (
-        str(args.manifest_in.name).replace(args.suffix, "") + "_tmp"
-    )
+    args.cuts_filename = str(args.manifest_out.name).replace(args.suffix, "")
 
-    out_cuts_filename = manifest_out_dir / (args.manifest_in)
-    if in_cuts_filename == out_cuts_filename:
-        logging.error(f"Output dir should not be same as input dir.")
+    if args.manifest_out.is_file():
+        logging.info(f"{args.manifest_out} already exists - skipping.")
         return
 
-    if out_cuts_filename.is_file():
-        logging.info(f"{out_cuts_filename} already exists - skipping.")
-        return
-
-    in_cuts = load_manifest_lazy(in_cuts_filename)
+    in_cuts = load_manifest_lazy(args.manifest_in)
 
     world_size = args.world_size
     assert world_size >= 1
@@ -407,6 +402,14 @@ def main():
         mp.spawn(
             run, args=(world_size, args, splits), nprocs=world_size, join=True
         )
+        out_filenames = []
+        for i in range(world_size):
+            out_filenames.append(
+                args.manifest_out_dir
+                / f"split/{args.cuts_filename}_{i}{args.suffix}"
+            )
+        cuts = combine(*[load_manifest_lazy(x) for x in out_filenames])
+        cuts.to_file(args.manifest_out)
     else:
         run(rank=0, world_size=world_size, args=args, in_cuts=in_cuts)
 
@@ -415,4 +418,8 @@ torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
 if __name__ == "__main__":
+    formatter = (
+        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    )
+    logging.basicConfig(format=formatter, level=logging.INFO)
     main()
