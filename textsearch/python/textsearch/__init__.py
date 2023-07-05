@@ -20,3 +20,4 @@ from .suffix_array import create_suffix_array
 from .utils import AttributeDict
 from .utils import is_punctuation
 from .utils import row_ids_to_row_splits
+from .utils import str2bool
