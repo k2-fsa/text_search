@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-# Copyright    2023  Xiaomi Corp.        (authors: Fangjun Kuang, Zengwei Yao)
+# Copyright    2023  Xiaomi Corp.        (authors: Fangjun Kuang,
+#                                                  Zengwei Yao,
+#                                                  Wei Kang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -26,7 +28,7 @@ import argparse
 import logging
 from pathlib import Path
 
-from lhotse import CutSet, load_manifest
+from lhotse import CutSet, load_manifest_lazy
 
 
 def get_args():
@@ -77,10 +79,10 @@ def main():
     logging.info(f"Processing {args.manifest_in}.")
 
     if args.manifest_out.is_file():
-        logging.info(f"{manifest_out} already exists - skipping.")
+        logging.info(f"{args.manifest_out} already exists - skipping.")
         return
 
-    cuts = load_manifest(args.manifest_in)
+    cuts = load_manifest_lazy(args.manifest_in)
 
     cuts = cuts.cut_into_windows(
         duration=args.chunk, hop=args.chunk - args.extra * 2
