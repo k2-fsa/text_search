@@ -410,6 +410,7 @@ def main():
             )
         cuts = combine(*[load_manifest_lazy(x) for x in out_filenames])
         cuts.to_file(args.manifest_out)
+        logging.info(f"Cuts saved to {args.manifest_out}")
     else:
         run(rank=0, world_size=world_size, args=args, in_cuts=in_cuts)
 
