@@ -1,3 +1,20 @@
+#!/usr/bin/env python3
+# Copyright    2023  Xiaomi Corp.        (authors: Wei Kang)
+#
+# See ../../../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import argparse
 import logging
 import numpy as np
@@ -129,7 +146,7 @@ def load_data(
     # Construct transcripts
     for i, cut in enumerate(batch_cuts):
         # No text book available, skip this cut.
-        if not os.path.isfile(cut.book):
+        if not os.path.isfile(cut.text_path):
             logging.warning(
                 f"Worker[{worker_index}] Skipping {cut.id} due to missing "
                 f"of reference book"
@@ -154,7 +171,7 @@ def load_data(
                 num_query_tokens += transcript.binary_text.size
                 transcripts.append(transcript)
                 transcripts_cut_index.append((i, j))
-        book_paths.add(cut.book)
+        book_paths.add(cut.text_path)
 
     # Construct references (the books)
     for i, book_path in enumerate(book_paths):
@@ -364,7 +381,7 @@ def write(
                 channel=current_cut.channel,
                 supervisions=[supervision],
                 recording=current_cut.recording,
-                custom={"text_path": str(current_cut.book)},
+                custom={"text_path": str(current_cut.text_path)},
             )
             cut_list.append(cut)
 

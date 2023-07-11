@@ -1072,7 +1072,7 @@ def _split_into_segments(
     segments = []
     for r in candidates:
         if not is_overlap(
-            selected_ranges, query=(r[0], r[1]), overlap_ratio=0.25
+            selected_ranges, query=(r[0], r[1]), overlap_ratio=0.5
         ):
             segments.append(r)
 

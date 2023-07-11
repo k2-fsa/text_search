@@ -17,8 +17,8 @@ set -eou pipefail
 chunk=30.0
 extra=2.0
 
-stage=2
-stop_stage=4
+stage=1
+stop_stage=5
 
 # We assume that you have downloaded the LibriLight dataset
 # with audio files in $corpus_dir and texts in $text_dir
@@ -41,6 +41,8 @@ corpus_dir=$PWD/download/libri-light
 text_dir=$PWD/download/librilight_text
 # Path to save the manifests
 output_dir=$PWD/data
+
+. parse_options.sh || exit 1
 
 world_size=4
 
@@ -92,7 +94,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
       --nn-model-filename exp/exp/jit_script.pt \
       --tokens exp/data/lang_bpe_500/tokens.txt \
       --max-duration 2400 \
-      --decoding-method greedy_search
+      --decoding-method greedy_search \
       --master 12345
   done
 fi
@@ -103,17 +105,17 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   for subset in small medium large; do
       ./tools/merge_chunks.py \
         --manifest-in $output_dir/manifests/librilight_asr_cuts_${subset}.jsonl.gz \
-        --manifest-out $output_dir/manifests/librilight_cuts_${subset}.jsonl.gz \
+        --manifest-out $output_dir/manifests/librilight_cuts_merged_${subset}.jsonl.gz \
         --extra $extra
   done
 fi
 
 
-if [$stage -le 5 ] && [ $stop_stage -eg 5 ]; then
+if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Align the long audios to corresponding texts and split into small piece."
   for subset in small medium large; do
-    ./tools/matching_parallel.py \
-      --manifest-in $output_dir/manifest/librilight_cuts_${subset}.jsonl.gz \
-      --manifests-out $output_dir/manifest/librilight_final_cuts_${subset}.jsonl.gz \
+    ./matching_parallel.py \
+      --manifest-in $output_dir/manifests/librilight_cuts_merged_${subset}.jsonl.gz \
+      --manifest-out $output_dir/manifests/librilight_cuts_${subset}.jsonl.gz
   done
 fi

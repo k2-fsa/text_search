@@ -130,29 +130,19 @@ def is_overlap(
     if index == 0:
         if ranges:
             is_overlap = (
-                query[1] - ranges[0][0]
-                > min(ranges[0][1] - ranges[0][0], query[1] - query[0])
-                * overlap_ratio
+                query[1] - ranges[0][0] > (query[1] - query[0]) * overlap_ratio
             )
     elif index == len(ranges):
         is_overlap = (
             ranges[index - 1][1] - query[0]
-            > min(
-                ranges[index - 1][1] - ranges[index - 1][0], query[1] - query[0]
-            )
-            * overlap_ratio
+            > (query[1] - query[0]) * overlap_ratio
         )
     else:
         is_overlap = (
             ranges[index - 1][1] - query[0]
-            > min(
-                ranges[index - 1][1] - ranges[index - 1][0], query[1] - query[0]
-            )
-            * overlap_ratio
+            > (query[1] - query[0]) * overlap_ratio
         ) or (
-            query[1] - ranges[index][0]
-            > min(ranges[index][1] - ranges[index][0], query[1] - query[0])
-            * overlap_ratio
+            query[1] - ranges[index][0] > (query[1] - query[0]) * overlap_ratio
         )
 
     if not is_overlap:
