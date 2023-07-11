@@ -42,6 +42,8 @@ text_dir=$PWD/download/librilight_text
 # Path to save the manifests
 output_dir=$PWD/data
 
+. parse_options.sh || exit 1
+
 world_size=4
 
 log() {
@@ -103,7 +105,7 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   for subset in small medium large; do
       ./tools/merge_chunks.py \
         --manifest-in $output_dir/manifests/librilight_asr_cuts_${subset}.jsonl.gz \
-        --manifest-out $output_dir/manifests/librilight_cuts_${subset}.jsonl.gz \
+        --manifest-out $output_dir/manifests/librilight_cuts_merged_${subset}.jsonl.gz \
         --extra $extra
   done
 fi
@@ -113,7 +115,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Align the long audios to corresponding texts and split into small piece."
   for subset in small medium large; do
     ./matching_parallel.py \
-      --manifest-in $output_dir/manifests/librilight_cuts_${subset}.jsonl.gz \
-      --manifest-out $output_dir/manifests/librilight_final_cuts_${subset}.jsonl.gz
+      --manifest-in $output_dir/manifests/librilight_cuts_merged_${subset}.jsonl.gz \
+      --manifest-out $output_dir/manifests/librilight_cuts_${subset}.jsonl.gz
   done
 fi
