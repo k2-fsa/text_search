@@ -153,8 +153,8 @@ then run the following command:
 
 ```
 python examples/librilight/matching.py \
-    --manifest-in path/to/librilight_cuts_small.jsonl.gz \
-    --manifest-out path/to/cuts_small.jsonl.gz \
+    --manifest-in path/to/librilight_cuts.jsonl.gz \
+    --manifest-out path/to/librilight_out_cuts.jsonl.gz \
     --batch-size 50
 ```
 
@@ -162,8 +162,8 @@ Or the parallel version:
 
 ```
 python examples/librilight/matching_parallel.py \
-    --manifest-in path/to/librilight_cuts_small.jsonl.gz \
-    --manifest-out path/to/cuts_small.jsonl.gz \
+    --manifest-in path/to/librilight_cuts.jsonl.gz \
+    --manifest-out path/to/librilight_out_cuts.jsonl.gz \
     --batch-size 50 \
     --num-workers 5
 ```
