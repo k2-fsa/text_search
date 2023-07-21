@@ -34,8 +34,9 @@ git lfs install
 git clone https://huggingface.co/datasets/pkufool/librilight-text
 ```
 
+> We provide a shell script `run.sh` to run all the following stages step by step.
 
-## Prepare manifests
+## Prepare manifests (stage 1 in run.sh)
 
 Note: You need to install [lhotse](https://github.com/lhotse-speech/lhotse) to prepare manifests.
 
@@ -98,29 +99,75 @@ The cuts look like this (only one line of it):
 ```
 
 
-## Decode the audios
+## Decode the audios (stage 2,3,4 in run.sh)
 
 This stage decodes the audios to texts with a pre-trained ASR model.
-Firstly split the long audio into smaller pieces (for eaxmple 30 seconds), then decode these pieces of audios to texts, combine them together at last.
+We will firstly split the long audio into smaller pieces (for eaxmple 30 seconds), then decode these pieces of audios to texts, combine them together at last.
 
-Code is available here: https://github.com/k2-fsa/icefall/pull/980
+### Split
 
-You can run the whole pipeline with the script long_file_recog.sh
+```
+./tools/split_into_chunks.py \
+  --manifest-in path/to/input_manifest \
+  --manifest-out path/to/output_manifest \
+  --chunk 30 \
+  --extra 2  # Extra duration (in seconds) at both sides
+```
+The input_manifest is the output of previous stage.
 
-**Note:** The whole pipeline includes the stages to prepare raw manifests in the above stage (stage 1 in long_file_recog.sh).
+### Transcription
+
+```
+./tools/recognize.py \
+  --world-size 4 \
+  --num-workers 8 \
+  --manifest-in path/to/input_manifest \
+  --manifest-out path/to/output_manifest \
+  --nn-model-filename path/to/jit_script.pt \
+  --tokens path/to/tokens.txt \
+  --max-duration 2400 \
+  --decoding-method greedy_search \
+  --master 12345
+```
+The input_manifest is the output of previous stage.
+
+### Combine
+
+```
+./tools/merge_chunks.py \
+  --manifest-in path/to/input_manifest \
+  --manifest-out path/to/output_manifest \
+  --extra 2  # should be the same as in split stage
+```
+The input_manifest is the output of previous stage.
 
 It will generate a manifest (including the transcripted text and timestamps).
 
 
-## Align the decoded texts to the reference books
+## Align the decoded texts to the reference books (stage 5 in run.sh)
 
 This stage aligns the transcripted texts to its reference books.
 
-First, you have to install the text_search library (https://github.com/danpovey/text_search),
+First, you have to install the text_search library (https://github.com/k2-fsa/text_search),
 then run the following command:
 
 ```
-python examples/librilight/matching.py --manifest-in path/to/librilight_cuts_small.jsonl.gz  --manifest-out path/to/cuts_small.jsonl.gz --batch-size 50 --num-workers 4
+python examples/librilight/matching.py \
+    --manifest-in path/to/librilight_cuts_small.jsonl.gz \
+    --manifest-out path/to/cuts_small.jsonl.gz \
+    --batch-size 50
 ```
 
-The manifest-in is the manifests generated in the decode audios stage.
+Or the parallel version:
+
+```
+python examples/librilight/matching_parallel.py \
+    --manifest-in path/to/librilight_cuts_small.jsonl.gz \
+    --manifest-out path/to/cuts_small.jsonl.gz \
+    --batch-size 50 \
+    --num-workers 5
+```
+
+The manifest-in is the manifests generated in the previous stage.
+
+
