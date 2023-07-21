@@ -57,7 +57,8 @@ jobs:
         if: ${{ matrix.os == 'ubuntu-latest' }}
         shell: bash
         run: |
-          python3 setup.py sdist
+          python3 -m pip install --upgrade build
+          python3 -m build -s
           ls -l dist/*
 
       - name: Publish sdist to PyPI
