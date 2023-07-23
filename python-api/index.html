@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Python API &mdash; fasttextsearch 1.0 documentation</title>
+  <title>Python API &mdash; fasttextsearch 0.6 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/tabs.css" type="text/css" />
@@ -30,7 +30,7 @@
             <a href="../index.html" class="icon icon-home"> fasttextsearch
           </a>
               <div class="version">
-                1.0
+                0.6
               </div>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
@@ -82,278 +82,15 @@
 <p>This section lists Python APIs in <a class="reference external" href="https://github.com/danpovey/text_search">fasttextsearch</a>.</p>
 <section id="create-suffix-array">
 <h2>create_suffix_array<a class="headerlink" href="#create-suffix-array" title="Permalink to this headline"></a></h2>
-<dl class="py function">
-<dt class="sig sig-object py" id="textsearch.create_suffix_array">
-<span class="sig-prename descclassname"><span class="pre">textsearch.</span></span><span class="sig-name descname"><span class="pre">create_suffix_array</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">array</span></span></em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/danpovey/text_search/blob/master/textsearch/python/textsearch/suffix_array.py#L46-L89"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#textsearch.create_suffix_array" title="Permalink to this definition"></a></dt>
-<dd><p>Create a suffix array from a 1-D input array.</p>
-<div class="admonition hint">
-<p class="admonition-title">Hint</p>
-<p>Please refer to <a class="reference external" href="https://en.wikipedia.org/wiki/Suffix_array">https://en.wikipedia.org/wiki/Suffix_array</a>
-for what suffix array is. Different from the above Wikipedia
-article the special sentinel letter <code class="docutils literal notranslate"><span class="pre">$</span></code> in <a class="reference external" href="https://github.com/danpovey/text_search">fasttextsearch</a>
-is known as EOS and it is larger than any other characters.</p>
-</div>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>array</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code>) – <p>A 1-D integer (or unsigned integer) array of shape <code class="docutils literal notranslate"><span class="pre">(seq_len</span> <span class="pre">-</span> <span class="pre">1,)</span></code>.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Inside this function, we will append explicitly an EOS
-symbol that is larger than <code class="docutils literal notranslate"><span class="pre">array.max()</span></code>.</p>
-</div>
-</p>
-</dd>
-<dt class="field-even">Return type</dt>
-<dd class="field-even"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code></p>
-</dd>
-<dt class="field-odd">Returns</dt>
-<dd class="field-odd"><p>Returns a suffix array of type <code class="docutils literal notranslate"><span class="pre">np.int32</span></code>, of shape <code class="docutils literal notranslate"><span class="pre">(seq_len,)</span></code>.
-This will consist of some permutation of the elements
-<code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">..</span> <span class="pre">seq_len</span> <span class="pre">-</span> <span class="pre">1</span></code>.</p>
-</dd>
-</dl>
-<p><strong>Usage examples</strong>:</p>
-<blockquote>
-<div><div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="ch">#!/usr/bin/env python3</span>
-
-<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">textsearch</span>
-
-<span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fromstring</span><span class="p">(</span><span class="s2">&quot;banana&quot;</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
-
-<span class="n">suffix_array</span> <span class="o">=</span> <span class="n">textsearch</span><span class="o">.</span><span class="n">create_suffix_array</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">suffix_array</span><span class="p">)</span>
-
-<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">suffix_array</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
-    <span class="nb">print</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="n">i</span><span class="p">:]</span><span class="o">.</span><span class="n">tobytes</span><span class="p">()</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;$&quot;</span><span class="p">)</span>
-
-<span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">The output is:</span>
-
-<span class="sd">[ 98  97 110  97 110  97]</span>
-<span class="sd">[1 3 5 0 2 4 6]</span>
-
-<span class="sd">anana$</span>
-<span class="sd">ana$</span>
-<span class="sd">a$</span>
-<span class="sd">banana$</span>
-<span class="sd">nana$</span>
-<span class="sd">na$</span>
-<span class="sd">&quot;&quot;&quot;</span>
-</pre></div>
-</div>
-</div></blockquote>
-</dd></dl>
-
 </section>
 <section id="find-close-matches">
 <h2>find_close_matches<a class="headerlink" href="#find-close-matches" title="Permalink to this headline"></a></h2>
-<dl class="py function">
-<dt class="sig sig-object py" id="textsearch.find_close_matches">
-<span class="sig-prename descclassname"><span class="pre">textsearch.</span></span><span class="sig-name descname"><span class="pre">find_close_matches</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">suffix_array</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.int32</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">query_len</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_close_matches</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">2</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.int32</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#textsearch.find_close_matches" title="Permalink to this definition"></a></dt>
-<dd><p>Assuming the suffix array was created from a text where the first
-<code class="docutils literal notranslate"><span class="pre">query_len</span></code> positions represent the query text and the remaining positions
-represent the reference text, return a list indicating, for each suffix
-position in the query text, the <code class="docutils literal notranslate"><span class="pre">num_close_matches</span></code> suffix positions in the
-reference text that immediately precede and follow it lexicographically.
-(I think suffix position refers to the last character of a suffix).</p>
-<p>(Note: the query and reference texts could each represent multiple separate
-sequences, but that is handled by other code; class SourcedText keeps track
-of that information.)</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>suffix_array</strong> – A suffix array as created by <a class="reference internal" href="#textsearch.create_suffix_array" title="textsearch.create_suffix_array"><code class="xref py py-func docutils literal notranslate"><span class="pre">create_suffix_array()</span></code></a>, of dtype
-<code class="docutils literal notranslate"><span class="pre">np.int32</span></code> and shape <code class="docutils literal notranslate"><span class="pre">(seq_len,)</span></code>.</p></li>
-<li><p><strong>query_len</strong> – A number <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">&lt;=</span> <span class="pre">query_len</span> <span class="pre">&lt;</span> <span class="pre">seq_len</span></code>, indicating the length in symbols
-(likely bytes) of the query part of the text that was used to create
-<code class="docutils literal notranslate"><span class="pre">suffix_array</span></code>.</p></li>
-<li><p><strong>num_close_matches</strong> – The number of close_matches for each query element.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>Return an np.ndarray of shape <code class="docutils literal notranslate"><span class="pre">(query_len,</span> <span class="pre">num_close_matches,)</span></code>, of the
-same dtype as <code class="docutils literal notranslate"><span class="pre">suffix_array</span></code>, in which positions
-<code class="docutils literal notranslate"><span class="pre">(i,</span> <span class="pre">0),</span> <span class="pre">(i,</span> <span class="pre">1),...</span> <span class="pre">(i,</span> <span class="pre">num_close_matches</span> <span class="pre">-</span> <span class="pre">1)</span></code> represent
-the num_close_matches positions in the original text that are within the
-reference portion, and which immediately precede and follow, in the suffix
-array, query position <code class="docutils literal notranslate"><span class="pre">i</span></code>.  This means that the suffixes ending at those
-positions are reverse-lexicographically close to the suffix ending at
-position <code class="docutils literal notranslate"><span class="pre">i</span></code>.  As a special case, if one of these returned numbers would
-equal the EOS position (position seq_len - 1), or if a query position is
-before any reference position in the suffix aray, we output
-<code class="docutils literal notranslate"><span class="pre">seq_len</span> <span class="pre">-</span> <span class="pre">2</span></code> instead to avoid having to handle special cases later on
-(anyway, these would not represent a close match).</p>
-</dd>
-</dl>
-<div class="admonition hint">
-<p class="admonition-title">Hint</p>
-<p>Please refer to <a class="reference internal" href="../tutorials/find-close-matches.html#find-close-matches-tutorial"><span class="std std-ref">Find close matches</span></a> for usages.</p>
-</div>
-<p>“””</p>
-</dd></dl>
-
 </section>
 <section id="levenshtein-distance">
 <h2>levenshtein_distance<a class="headerlink" href="#levenshtein-distance" title="Permalink to this headline"></a></h2>
-<dl class="py function">
-<dt class="sig sig-object py" id="textsearch.levenshtein_distance">
-<span class="sig-prename descclassname"><span class="pre">textsearch.</span></span><span class="sig-name descname"><span class="pre">levenshtein_distance</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">query</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.int32</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.int32</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'infix'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">insert_cost</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">delete_cost</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">replace_cost</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#textsearch.levenshtein_distance" title="Permalink to this definition"></a></dt>
-<dd><p>Calculate the levenshtein distance between query and target sequence.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>query</strong> – The query sequence; it is a 1-D numpy ndarray, only <code class="docutils literal notranslate"><span class="pre">np.int32</span></code> is
-supported now.</p></li>
-<li><p><strong>target</strong> – The target sequence, it is a 1-D numpy ndarray with same dtype as
-query sequence.</p></li>
-<li><p><strong>mode</strong> – It can be either “global” or “infix”, when it equals “global”, we are doing
-the normal levenshtein distance, when it equals “infix”, it means we are
-doing the infix search, gaps at query end and start are not penalized. What
-that means is that deleting elements from the start and end of target is
-“free”! For example, if we had ACT and CGACTGAC, the levenshtein distance
-would be 0, because removing CG from the start and GAC from the end
-of target is “free” and does not count into total levenshtein distance.
-Default: infix.</p></li>
-<li><p><strong>insert_cost</strong> – The cost of insertion error, default 1.</p></li>
-<li><p><strong>delete_cost</strong> – The cost of deletion error, default 1.</p></li>
-<li><p><strong>replace_cost</strong> – The cost of replacement error, default 1.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>Return a tuple which has two elements, the first element is the levenshtein
-distance, the second element is a list of tuple, each tuple in the list has
-<cite>start</cite> and <cite>end</cite> (index into the target sequence, for “global” mode, <cite>start</cite>
-is always 0, <cite>end</cite> is always <cite>len(target) - 1</cite>) and <cite>alignment</cite>.
-See the examples below for more details.</p>
-</dd>
-</dl>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">textsearch</span> <span class="kn">import</span> <span class="n">levenshtein_distance</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">query</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">target</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">distance</span><span class="p">,</span> <span class="n">alignments</span> <span class="o">=</span> <span class="n">levenshtein_distance</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">distance</span><span class="p">,</span> <span class="n">alignments</span><span class="p">)</span>
-<span class="go">1 [(0, 3, &#39;CSCC&#39;), (6, 8, &#39;CCIC&#39;)]</span>
-</pre></div>
-</div>
-<p>The result above indicates that there are two segments in target sequence having
-the same levenshtein distance with query sequence. The levenshtein distance is 1,
-the end index of first segment into target sequence is 3 ([1,5,3,4]), and the
-end index of second sequence is 8 ([1,2,4]). For the align string, <cite>I</cite> means
-insertion, <cite>D</cite> means deletion, <cite>S</cite> means substitution, <cite>C</cite> means correct.</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">textsearch</span> <span class="kn">import</span> <span class="n">levenshtein_distance</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">query</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">target</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">distance</span><span class="p">,</span> <span class="n">alignments</span> <span class="o">=</span> <span class="n">levenshtein_distance</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="s2">&quot;global&quot;</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span> <span class="p">(</span><span class="n">distance</span><span class="p">,</span> <span class="n">alignments</span><span class="p">)</span>
-<span class="go">6 [(0, 8, &#39;CSCDDDDDC&#39;)]</span>
-</pre></div>
-</div>
-<div class="admonition hint">
-<p class="admonition-title">Hint</p>
-<p>Please refer to <a class="reference internal" href="#textsearch.get_nice_alignments" title="textsearch.get_nice_alignments"><code class="xref py py-func docutils literal notranslate"><span class="pre">textsearch.get_nice_alignments()</span></code></a> for how to visualize
-the alignments.</p>
-</div>
-</dd></dl>
-
 </section>
 <section id="get-nice-alignments">
 <h2>get_nice_alignments<a class="headerlink" href="#get-nice-alignments" title="Permalink to this headline"></a></h2>
-<dl class="py function">
-<dt class="sig sig-object py" id="textsearch.get_nice_alignments">
-<span class="sig-prename descclassname"><span class="pre">textsearch.</span></span><span class="sig-name descname"><span class="pre">get_nice_alignments</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">alignments</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">query</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target</span></span></em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/danpovey/text_search/blob/master/textsearch/python/textsearch/levenshtein.py#L21-L117"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#textsearch.get_nice_alignments" title="Permalink to this definition"></a></dt>
-<dd><p>Get the alignment of the matched segments.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>alignments</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code>[<code class="xref py py-data docutils literal notranslate"><span class="pre">Tuple</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code>]]) – The alignments information returned by the <a class="reference internal" href="#textsearch.levenshtein_distance" title="textsearch.levenshtein_distance"><code class="xref py py-func docutils literal notranslate"><span class="pre">levenshtein_distance()</span></code></a>.</p></li>
-<li><p><strong>query</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code>) – The query sequence.</p></li>
-<li><p><strong>target</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code>) – The target sequence.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Return type</dt>
-<dd class="field-even"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code>]</p>
-</dd>
-<dt class="field-odd">Returns</dt>
-<dd class="field-odd"><p><p>Return a list of alignment string, it has the same length as alignments.
-See the following example for more details, the first line of the alignment
-is query, the second line is the error types, the third line is the target
-segment. The following symbols are used to represent the error types:</p>
-<blockquote>
-<div><ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">*</span></code>: empty</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">+</span></code>: insertion</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">-</span></code>: deletion</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">#</span></code>: replacement</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">|</span></code>: equal.</p></li>
-</ul>
-</div></blockquote>
-</p>
-</dd>
-</dl>
-<p><strong>Example 1/2</strong></p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">textsearch</span> <span class="kn">import</span> <span class="n">get_nice_alignments</span><span class="p">,</span> <span class="n">levenshtein_distance</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">query</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">target</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">distance</span><span class="p">,</span> <span class="n">alignments</span> <span class="o">=</span> <span class="n">levenshtein_distance</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">distance</span>
-<span class="go">1</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">alignments</span>
-<span class="go">[(0, 3, &#39;CSCC&#39;), (6, 8, &#39;CCIC&#39;)]</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">aligns</span> <span class="o">=</span> <span class="n">get_nice_alignments</span><span class="p">(</span><span class="n">alignments</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="nb">repr</span><span class="p">(</span><span class="n">aligns</span><span class="p">)</span>
-<span class="go">&quot;[&#39;1 2 3 4 \n| # | | \n1 5 3 4 &#39;, &#39;1 2 3 4 \n| | + | \n1 2 * 4 &#39;]&quot;</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span> <span class="p">(</span><span class="n">aligns</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-<span class="go">1 2 3 4</span>
-<span class="go">| # | |</span>
-<span class="go">1 5 3 4</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span> <span class="p">(</span><span class="n">aligns</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
-<span class="go">1 2 3 4</span>
-<span class="go">| | + |</span>
-<span class="go">1 2 * 4</span>
-</pre></div>
-</div>
-<p><strong>Example 2/2</strong></p>
-<blockquote>
-<div><div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="ch">#!/usr/bin/env python3</span>
-
-<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">textsearch</span>
-
-<span class="n">q</span> <span class="o">=</span> <span class="s2">&quot;abcd&quot;</span>
-<span class="n">t</span> <span class="o">=</span> <span class="s2">&quot;acdefabd&quot;</span>
-<span class="n">query</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fromstring</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
-<span class="n">target</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fromstring</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
-<span class="n">distance</span><span class="p">,</span> <span class="n">alignments</span> <span class="o">=</span> <span class="n">textsearch</span><span class="o">.</span><span class="n">levenshtein_distance</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">distance</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">alignments</span><span class="p">)</span>
-<span class="n">aligns</span> <span class="o">=</span> <span class="n">textsearch</span><span class="o">.</span><span class="n">get_nice_alignments</span><span class="p">(</span><span class="n">alignments</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">aligns</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;-.&quot;</span> <span class="o">*</span> <span class="mi">10</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">aligns</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
-
-<span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">The output is</span>
-
-<span class="sd">1</span>
-<span class="sd">[(0, 2, &#39;CICC&#39;), (5, 7, &#39;CCIC&#39;)]</span>
-<span class="sd">a b c d</span>
-<span class="sd">| + | |</span>
-<span class="sd">a * c d</span>
-<span class="sd">-.-.-.-.-.-.-.-.-.-.</span>
-<span class="sd">a b c d</span>
-<span class="sd">| | + |</span>
-<span class="sd">a b * d</span>
-<span class="sd">&quot;&quot;&quot;</span>
-</pre></div>
-</div>
-</div></blockquote>
-</dd></dl>
-
 </section>
 </section>
 
