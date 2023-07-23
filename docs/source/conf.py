@@ -33,7 +33,7 @@ def get_version():
     with open(cmake_file) as f:
         content = f.read()
 
-    version = re.search(r"set\(FTS_VERSION (.*)\)", content).group(1)
+    version = re.search(r"set\(TS_VERSION (.*)\)", content).group(1)
     return version.strip('"')
 
 
