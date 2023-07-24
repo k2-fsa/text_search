@@ -4,6 +4,7 @@
 
 import glob
 import os
+import platform
 import re
 import shutil
 import sys
@@ -12,6 +13,23 @@ import setuptools
 from setuptools.command.build_ext import build_ext
 
 cur_dir = os.path.dirname(os.path.abspath(__file__))
+
+
+def is_windows():
+    return platform.system() == "Windows"
+
+try:
+    from wheel.bdist_wheel import bdist_wheel as _bdist_wheel
+
+    class bdist_wheel(_bdist_wheel):
+        def finalize_options(self):
+            _bdist_wheel.finalize_options(self)
+            # In this case, the generated wheel has a name in the form
+            # fasttextsearch-xxx-pyxx-none-any.whl
+            self.root_is_pure = True
+
+except ImportError:
+    bdist_wheel = None
 
 
 def cmake_extension(name, *args, **kwargs) -> setuptools.Extension:
@@ -38,6 +56,7 @@ class BuildExtension(build_ext):
 
         if cmake_args == "":
             cmake_args = "-DCMAKE_BUILD_TYPE=Release -DTS_BUILD_TESTS=OFF"
+            cmake_args += f" -DCMAKE_INSTALL_PREFIX={self.build_lib} "
 
         if make_args == "" and system_make_args == "":
             make_args = " -j "
@@ -46,34 +65,43 @@ class BuildExtension(build_ext):
             print(f"Setting PYTHON_EXECUTABLE to {sys.executable}")
             cmake_args += f" -DPYTHON_EXECUTABLE={sys.executable}"
 
-        build_cmd = f"""
-            cd {self.build_temp}
 
-            cmake {cmake_args} {ts_dir}
-
-            make {make_args} _textsearch
-        """
-        print(f"build command is:\n{build_cmd}")
-
-        ret = os.system(build_cmd)
-        if ret != 0:
-            raise Exception(
-                "\nBuild text_search failed. Please check the error "
-                "message.\n"
-                "You can ask for help by creating an issue on GitHub.\n"
-                "\nClick:\n"
-                "\thttps://github.com/k2-fsa/text_search/issues/new\n"  # noqa
+        if is_windows():
+            build_cmd = f"""
+         cmake {cmake_args} -B {self.build_temp} -S {ts_dir}
+         cmake --build {self.build_temp} --target install --config Release -- -m
+            """
+            print(f"build command is:\n{build_cmd}")
+            ret = os.system(
+                f"cmake {cmake_args} -B {self.build_temp} -S {ts_dir}"
             )
-        lib_so = glob.glob(f"{build_dir}/lib/*.so*")
-        for so in lib_so:
-            print(f"Copying {so} to {self.build_lib}/")
-            shutil.copy(f"{so}", f"{self.build_lib}/")
+            if ret != 0:
+                raise Exception("Failed to configure fasttextsearch")
 
-        # macos
-        lib_so = glob.glob(f"{build_dir}/lib/*.dylib*")
-        for so in lib_so:
-            print(f"Copying {so} to {self.build_lib}/")
-            shutil.copy(f"{so}", f"{self.build_lib}/")
+            ret = os.system(
+                f"cmake --build {self.build_temp} --target install --config Release -- -m"  # noqa
+            )
+            if ret != 0:
+                raise Exception("Failed to build and install fasttextsearch")
+        else:
+            build_cmd = f"""
+                cd {self.build_temp}
+
+                cmake {cmake_args} {ts_dir}
+
+                make {make_args} install/strip
+            """
+            print(f"build command is:\n{build_cmd}")
+
+            ret = os.system(build_cmd)
+            if ret != 0:
+                raise Exception(
+                    "\nBuild text_search failed. Please check the error "
+                    "message.\n"
+                    "You can ask for help by creating an issue on GitHub.\n"
+                    "\nClick:\n"
+                    "\thttps://github.com/k2-fsa/text_search/issues/new\n"  # noqa
+                )
 
 
 def get_package_version():
@@ -85,14 +113,25 @@ def get_package_version():
     return latest_version
 
 
-with open("textsearch/python/textsearch/__init__.py", "a") as f:
-    f.write(f"__version__ = '{get_package_version()}'\n")
-
 setuptools.setup(
     package_dir={
         "textsearch": "textsearch/python/textsearch",
     },
     packages=["textsearch"],
     ext_modules=[cmake_extension("_text_search")],
-    cmdclass={"build_ext": BuildExtension},
+    cmdclass={"build_ext": BuildExtension, "bdist_wheel": bdist_wheel},
 )
+
+with open("textsearch/python/textsearch/__init__.py", "a") as f:
+    f.write(f"__version__ = '{get_package_version()}'\n")
+
+with open("textsearch/python/textsearch/__init__.py", "r") as f:
+    lines = f.readlines()
+
+with open("textsearch/python/textsearch/__init__.py", "w") as f:
+    for line in lines:
+        if "__version__" in line:
+            # skip __version__ = "x.x.x"
+            continue
+        f.write(line)
+

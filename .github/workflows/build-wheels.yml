@@ -3,7 +3,7 @@ name: build-wheels
 on:
   push:
     branches:
-      - master
+      - wheels
     tags:
       - '*'
 

@@ -8,3 +8,4 @@ pybind11_add_module(_textsearch
 
 target_link_libraries(_textsearch PRIVATE textsearch_core)
 
+install(TARGETS _textsearch DESTINATION ./)

@@ -6,6 +6,8 @@ set(textsearch_srcs
 
 add_library(textsearch_core ${textsearch_srcs})
 
+install(TARGETS textsearch_core DESTINATION ./)
+
 function(textsearch_add_test source)
   get_filename_component(name ${source} NAME_WE)
   add_executable(${name} "${source}")
