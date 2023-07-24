@@ -104,6 +104,18 @@ class BuildExtension(build_ext):
                 )
 
 
+        lib_so = glob.glob(f"{build_dir}/lib/*.so*")
+        for so in lib_so:
+            print(f"Copying {so} to {self.build_lib}/")
+            shutil.copy(f"{so}", f"{self.build_lib}/")
+
+        # macos
+        lib_so = glob.glob(f"{build_dir}/lib/*.dylib*")
+        for so in lib_so:
+            print(f"Copying {so} to {self.build_lib}/")
+            shutil.copy(f"{so}", f"{self.build_lib}/")
+
+
 def get_package_version():
     with open("CMakeLists.txt") as f:
         content = f.read()
