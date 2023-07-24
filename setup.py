@@ -18,18 +18,18 @@ cur_dir = os.path.dirname(os.path.abspath(__file__))
 def is_windows():
     return platform.system() == "Windows"
 
-try:
-    from wheel.bdist_wheel import bdist_wheel as _bdist_wheel
-
-    class bdist_wheel(_bdist_wheel):
-        def finalize_options(self):
-            _bdist_wheel.finalize_options(self)
-            # In this case, the generated wheel has a name in the form
-            # fasttextsearch-xxx-pyxx-none-any.whl
-            self.root_is_pure = True
-
-except ImportError:
-    bdist_wheel = None
+#try:
+#    from wheel.bdist_wheel import bdist_wheel as _bdist_wheel
+#
+#    class bdist_wheel(_bdist_wheel):
+#        def finalize_options(self):
+#            _bdist_wheel.finalize_options(self)
+#            # In this case, the generated wheel has a name in the form
+#            # fasttextsearch-xxx-pyxx-none-any.whl
+#            self.root_is_pure = True
+#
+#except ImportError:
+#    bdist_wheel = None
 
 
 def cmake_extension(name, *args, **kwargs) -> setuptools.Extension:
@@ -55,7 +55,7 @@ class BuildExtension(build_ext):
         system_make_args = os.environ.get("MAKEFLAGS", "")
 
         if cmake_args == "":
-            cmake_args = "-DCMAKE_BUILD_TYPE=Release -DTS_BUILD_TESTS=OFF"
+            cmake_args = "-DCMAKE_BUILD_TYPE=Release -DTS_ENABLE_TESTS=OFF"
             cmake_args += f" -DCMAKE_INSTALL_PREFIX={self.build_lib} "
 
         if make_args == "" and system_make_args == "":
@@ -103,17 +103,16 @@ class BuildExtension(build_ext):
                     "\thttps://github.com/k2-fsa/text_search/issues/new\n"  # noqa
                 )
 
+        #lib_so = glob.glob(f"{build_dir}/lib/*.so*")
+        #for so in lib_so:
+        #    print(f"Copying {so} to {self.build_lib}/")
+        #    shutil.copy(f"{so}", f"{self.build_lib}/")
 
-        lib_so = glob.glob(f"{build_dir}/lib/*.so*")
-        for so in lib_so:
-            print(f"Copying {so} to {self.build_lib}/")
-            shutil.copy(f"{so}", f"{self.build_lib}/")
-
-        # macos
-        lib_so = glob.glob(f"{build_dir}/lib/*.dylib*")
-        for so in lib_so:
-            print(f"Copying {so} to {self.build_lib}/")
-            shutil.copy(f"{so}", f"{self.build_lib}/")
+        ## macos
+        #lib_so = glob.glob(f"{build_dir}/lib/*.dylib*")
+        #for so in lib_so:
+        #    print(f"Copying {so} to {self.build_lib}/")
+        #    shutil.copy(f"{so}", f"{self.build_lib}/")
 
 
 def get_package_version():
@@ -130,8 +129,8 @@ setuptools.setup(
         "textsearch": "textsearch/python/textsearch",
     },
     packages=["textsearch"],
-    ext_modules=[cmake_extension("_text_search")],
-    cmdclass={"build_ext": BuildExtension, "bdist_wheel": bdist_wheel},
+    ext_modules=[cmake_extension("_textsearch")],
+    cmdclass={"build_ext": BuildExtension},
 )
 
 with open("textsearch/python/textsearch/__init__.py", "a") as f:
