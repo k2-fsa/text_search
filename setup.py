@@ -18,19 +18,6 @@ cur_dir = os.path.dirname(os.path.abspath(__file__))
 def is_windows():
     return platform.system() == "Windows"
 
-try:
-    from wheel.bdist_wheel import bdist_wheel as _bdist_wheel
-
-    class bdist_wheel(_bdist_wheel):
-        def finalize_options(self):
-            _bdist_wheel.finalize_options(self)
-            # In this case, the generated wheel has a name in the form
-            # fasttextsearch-xxx-pyxx-none-any.whl
-            self.root_is_pure = True
-
-except ImportError:
-    bdist_wheel = None
-
 
 def cmake_extension(name, *args, **kwargs) -> setuptools.Extension:
     kwargs["language"] = "c++"
@@ -130,7 +117,7 @@ setuptools.setup(
     },
     packages=["textsearch"],
     ext_modules=[cmake_extension("_textsearch")],
-    cmdclass={"build_ext": BuildExtension, "bdist_wheel": bdist_wheel},
+    cmdclass={"build_ext": BuildExtension},
 )
 
 with open("textsearch/python/textsearch/__init__.py", "a") as f:
