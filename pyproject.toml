@@ -3,20 +3,21 @@ requires = [
     "setuptools>=61",
     "wheel",
     "ninja",
-    "cmake>=3.8",
+    "cmake>=3.12",
 ]
 build-backend = "setuptools.build_meta"
 
 
 [project]
 name = "fasttextsearch"
-version = "0.6"
+version = "0.7"
 authors = [
   { name="Next-gen Kaldi development team", email="wkang.pku@gmail.com" },
 ]
 description="Some fast-ish algorithms for batch text search in moderate-sized collections, intended for data cleanup."
 dependencies = [
   "numpy",
+  "regex",
 ]
 readme = "README.md"
 requires-python = ">=3.7"

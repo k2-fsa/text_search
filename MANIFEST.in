@@ -4,3 +4,4 @@ include CMakeLists.txt
 include requirements.txt
 recursive-include textsearch *.*
 recursive-include cmake *.*
+global-exclude */__pycache__/*
