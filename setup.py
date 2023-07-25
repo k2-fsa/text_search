@@ -130,7 +130,7 @@ setuptools.setup(
     },
     packages=["textsearch"],
     ext_modules=[cmake_extension("_textsearch")],
-    cmdclass={"build_ext": BuildExtension},
+    cmdclass={"build_ext": BuildExtension, "bdist_wheel": bdist_wheel},
 )
 
 with open("textsearch/python/textsearch/__init__.py", "a") as f:
