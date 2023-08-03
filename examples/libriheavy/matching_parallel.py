@@ -245,6 +245,7 @@ def splitter(
 
 
 def writer(
+    params: AttributeDict,
     write_queue: Queue,
     cuts_writer: SequentialJsonlWriter,
 ):
@@ -266,7 +267,10 @@ def writer(
             results = item["segments"]
             batch_cuts = item["cuts"]
             write(
-                batch_cuts=batch_cuts, results=results, cuts_writer=cuts_writer
+                params=params,
+                batch_cuts=batch_cuts,
+                results=results,
+                cuts_writer=cuts_writer,
             )
         except Exception as e:
             logging.error(f"Writer caught {type(e)}: e")
@@ -367,6 +371,7 @@ def main():
     writer_thread = Thread(
         target=writer,
         args=(
+            params,
             write_queue,
             cuts_writer,
         ),

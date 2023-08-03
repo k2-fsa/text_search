@@ -99,6 +99,8 @@ def get_params() -> AttributeDict:
             "max_duration": 30,
             "expected_duration": (5, 20),
             "max_error_rate": 0.20,
+            # output
+            "output_post_texts": False,
         }
     )
 
@@ -330,6 +332,7 @@ def split(
 
 
 def write(
+    params: AttributeDict,
     batch_cuts: List[MonoCut],
     results,
     cuts_writer: SequentialJsonlWriter,
@@ -358,6 +361,16 @@ def write(
         for seg in segments:
             id = f"{current_cut.id}_{cut_segment_index[current_cut.id]}"
             cut_segment_index[current_cut.id] += 1
+            custom = (
+                {
+                    "texts": [seg["ref"], seg["hyp"]],
+                    "pre_texts": [seg["pre_ref"], seg["pre_hyp"]],
+                    "begin_byte": seg["begin_byte"],
+                    "end_byte": seg["end_byte"],
+                },
+            )
+            if params.output_post_texts:
+                custom["post_texts"] = [seg["post_ref"], seg["post_hyp"]]
             supervision = SupervisionSegment(
                 id=id,
                 channel=current_cut.supervisions[cut_indexes[1]].channel,
@@ -366,13 +379,7 @@ def write(
                 recording_id=current_cut.recording.id,
                 start=0,
                 duration=seg["duration"],
-                custom={
-                    "texts": [seg["ref"], seg["hyp"]],
-                    "pre_texts": [seg["pre_ref"], seg["pre_hyp"]],
-                    "post_texts": [seg["post_ref"], seg["post_ref"]],
-                    "begin_byte": seg["begin_byte"],
-                    "end_byte": seg["end_byte"],
-                },
+                custom=custom,
             )
             cut = MonoCut(
                 id,
@@ -423,6 +430,7 @@ def process_one_batch(
         logging.warning("Splitted data is empty.")
         return
     write(
+        params=params,
         batch_cuts=batch_cuts,
         results=splited_data,
         cuts_writer=cuts_writer,
