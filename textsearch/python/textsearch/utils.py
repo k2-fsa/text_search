@@ -9,6 +9,13 @@ from _textsearch import row_ids_to_row_splits as _row_ids_to_row_splits
 
 Pathlike = Union[str, Path]
 
+PUCTUATIONS = {
+    "all": set("',.;?!():-<>/\"，。；？！（）：-《》【】”“"),
+    "eos": set(".?!。？！"),
+    "left": set("\"'(<《【“"),
+    "right": set("\"')>》】”"),
+}
+
 
 class AttributeDict(dict):
     def __getattr__(self, key):
@@ -161,8 +168,8 @@ def is_punctuation(c: str, eos_only: bool = False) -> bool:
         If True the punctuations are only those indicating end of a sentence (.?! for now).
     """
     if eos_only:
-        return c in ".?!"
-    return c in ',.;?!():-<>-/"'
+        return c in PUCTUATIONS["eos"]
+    return c in PUCTUATIONS["all"]
 
 
 def str2bool(v):

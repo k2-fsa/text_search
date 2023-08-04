@@ -33,7 +33,12 @@ from _textsearch import (
 )
 from .suffix_array import create_suffix_array
 from .datatypes import SourcedText, TextSource, Transcript
-from .utils import is_overlap, is_punctuation, row_ids_to_row_splits
+from .utils import (
+    PUCTUATIONS,
+    is_overlap,
+    is_punctuation,
+    row_ids_to_row_splits,
+)
 
 
 def get_longest_increasing_pairs(
@@ -241,7 +246,7 @@ def _break_query(
                 target_end,
             )
         else:
-            segments.append((query_start, query_end, target_start, target_end,))
+            segments.append((query_start, query_end, target_start, target_end))
     else:
         add_segments(
             query_start,
@@ -682,7 +687,7 @@ def _get_segment_candidates(
         "(?<!Mr|Mrs|Dr|Ms|Prof|Pro|Capt|Gen|Sen|Rev|Hon|St)\."
     )
     # the largest length of the patterns.
-    period_pattern_length = 4
+    period_pattern_length = 5
 
     for i, align in enumerate(aligns):
         matched = align["ref"] == align["hyp"]
@@ -741,7 +746,10 @@ def _get_segment_candidates(
                         ]
                     ]
                 )
-                if period_patterns.search(tmp) is not None:
+                if current_token != "." or (
+                    current_token == "."
+                    and period_patterns.search(tmp) is not None
+                ):
                     prev_punctuation = punctuation_score
                     break
                 else:
@@ -764,7 +772,10 @@ def _get_segment_candidates(
                         ]
                     ]
                 )
-                if period_patterns.search(tmp) is not None:
+                if current_token != "." or (
+                    current_token == "."
+                    and period_patterns.search(tmp) is not None
+                ):
                     succ_punctuation = punctuation_score
                     break
                 else:
@@ -788,16 +799,16 @@ def _get_segment_candidates(
 
         if target_source.has_punctuation:
             if prev_punctuation > 0 or i == 0:
-                begin_scores.append((i, begin_score,))
+                begin_scores.append((i, begin_score))
             if succ_punctuation > 0 or i == len(aligns) - 1:
-                end_scores.append((i, end_score,))
+                end_scores.append((i, end_score))
         else:
             if matched and (prev_silence >= silence_length_to_break or i == 0):
-                begin_scores.append((i, begin_score,))
+                begin_scores.append((i, begin_score))
             if matched and (
                 succ_silence >= silence_length_to_break or i == len(aligns) - 1
             ):
-                end_scores.append((i, end_score,))
+                end_scores.append((i, end_score))
 
     # (start, end, score)
     begin_list: List[Tuple[int, int, float]] = []
@@ -875,7 +886,7 @@ def _get_segment_candidates(
                 item_q,
                 (
                     point_score + matched_score - error_score + duration_score,
-                    (item[0], end_scores[ind][0],),
+                    (item[0], end_scores[ind][0]),
                 ),
             )
             if len(item_q) > num_of_best_position:
@@ -956,7 +967,7 @@ def _get_segment_candidates(
                 item_q,
                 (
                     point_score + matched_score - error_score + duration_score,
-                    (begin_scores[ind][0], item[0],),
+                    (begin_scores[ind][0], item[0]),
                 ),
             )
             if len(item_q) > num_of_best_position:
@@ -1080,7 +1091,23 @@ def _split_into_segments(
 
     for seg in segments:
         begin_pos = aligns[seg[0]]["ref_pos"]
-        end_pos = aligns[seg[1]]["ref_pos"] + 1
+        while begin_pos >= 1:
+            current_token = chr(target_source.binary_text[begin_pos - 1])
+            if current_token in PUCTUATIONS["left"]:
+                begin_pos -= 1
+            else:
+                break
+
+        end_pos = aligns[seg[1]]["ref_pos"]
+        while end_pos + 1 < target_source.binary_text.size:
+            current_token = chr(target_source.binary_text[end_pos + 1])
+            if (
+                current_token in PUCTUATIONS["right"]
+                or current_token in PUCTUATIONS["eos"]
+            ):
+                end_pos += 1
+            else:
+                break
 
         preceding_index = seg[0] if seg[0] == 0 else seg[0] - 1
         succeeding_index = seg[1] if seg[1] == len(aligns) - 1 else seg[1] + 1
@@ -1105,11 +1132,13 @@ def _split_into_segments(
             end_time = aligns[succeeding_index]["hyp_time"]
 
         hyp_begin_pos = aligns[seg[0]]["hyp_pos"]
-        hyp_end_pos = aligns[seg[1]]["hyp_pos"] + 1
+        hyp_end_pos = aligns[seg[1]]["hyp_pos"]
         hyp = "".join(
             [
                 chr(i)
-                for i in query_source.binary_text[hyp_begin_pos:hyp_end_pos]
+                for i in query_source.binary_text[
+                    hyp_begin_pos : hyp_end_pos + 1
+                ]
             ]
         )
 
@@ -1131,7 +1160,7 @@ def _split_into_segments(
             [
                 chr(i)
                 for i in target_source.binary_text[
-                    end_pos : end_pos + preceding_context_length
+                    end_pos + 1 : end_pos + preceding_context_length
                 ]
             ]
         )
@@ -1151,7 +1180,7 @@ def _split_into_segments(
             [
                 chr(i)
                 for i in query_source.binary_text[
-                    hyp_end_pos : hyp_begin_pos + preceding_context_length
+                    hyp_end_pos + 1 : hyp_begin_pos + preceding_context_length
                 ]
             ]
         )

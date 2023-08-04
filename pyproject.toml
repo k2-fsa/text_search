@@ -10,7 +10,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fasttextsearch"
-version = "0.7"
+version = "0.8"
 authors = [
   { name="Next-gen Kaldi development team", email="wkang.pku@gmail.com" },
 ]
@@ -33,6 +33,3 @@ classifiers = [
 
 [tool.black]
 line-length = 80
-
-
-
