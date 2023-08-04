@@ -806,36 +806,16 @@ def _get_segment_candidates(
 
         if target_source.has_punctuation:
             if prev_punctuation > 0 or i == 0:
-                begin_scores.append(
-                    (
-                        i,
-                        begin_score,
-                    )
-                )
+                begin_scores.append((i, begin_score))
             if succ_punctuation > 0 or i == len(aligns) - 1:
-                end_scores.append(
-                    (
-                        i,
-                        end_score,
-                    )
-                )
+                end_scores.append((i, end_score))
         else:
             if matched and (prev_silence >= silence_length_to_break or i == 0):
-                begin_scores.append(
-                    (
-                        i,
-                        begin_score,
-                    )
-                )
+                begin_scores.append((i, begin_score))
             if matched and (
                 succ_silence >= silence_length_to_break or i == len(aligns) - 1
             ):
-                end_scores.append(
-                    (
-                        i,
-                        end_score,
-                    )
-                )
+                end_scores.append((i, end_score))
 
     # (start, end, score)
     begin_list: List[Tuple[int, int, float]] = []
@@ -913,10 +893,7 @@ def _get_segment_candidates(
                 item_q,
                 (
                     point_score + matched_score - error_score + duration_score,
-                    (
-                        item[0],
-                        end_scores[ind][0],
-                    ),
+                    (item[0], end_scores[ind][0]),
                 ),
             )
             if len(item_q) > num_of_best_position:
@@ -997,10 +974,7 @@ def _get_segment_candidates(
                 item_q,
                 (
                     point_score + matched_score - error_score + duration_score,
-                    (
-                        begin_scores[ind][0],
-                        item[0],
-                    ),
+                    (begin_scores[ind][0], item[0]),
                 ),
             )
             if len(item_q) > num_of_best_position:
