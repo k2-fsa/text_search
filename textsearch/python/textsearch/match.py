@@ -246,14 +246,7 @@ def _break_query(
                 target_end,
             )
         else:
-            segments.append(
-                (
-                    query_start,
-                    query_end,
-                    target_start,
-                    target_end,
-                )
-            )
+            segments.append((query_start, query_end, target_start, target_end))
     else:
         add_segments(
             query_start,
