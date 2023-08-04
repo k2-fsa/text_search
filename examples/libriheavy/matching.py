@@ -361,14 +361,12 @@ def write(
         for seg in segments:
             id = f"{current_cut.id}_{cut_segment_index[current_cut.id]}"
             cut_segment_index[current_cut.id] += 1
-            custom = (
-                {
-                    "texts": [seg["ref"], seg["hyp"]],
-                    "pre_texts": [seg["pre_ref"], seg["pre_hyp"]],
-                    "begin_byte": seg["begin_byte"],
-                    "end_byte": seg["end_byte"],
-                },
-            )
+            custom = {
+                "texts": [seg["ref"], seg["hyp"]],
+                "pre_texts": [seg["pre_ref"], seg["pre_hyp"]],
+                "begin_byte": seg["begin_byte"],
+                "end_byte": seg["end_byte"],
+            }
             if params.output_post_texts:
                 custom["post_texts"] = [seg["post_ref"], seg["post_hyp"]]
             supervision = SupervisionSegment(

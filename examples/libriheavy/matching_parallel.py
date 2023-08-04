@@ -51,7 +51,7 @@ def get_args():
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=100,
+        default=50,
         help="""The number of cuts in a batch.
         """,
     )
