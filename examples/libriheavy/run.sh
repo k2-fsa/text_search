@@ -82,6 +82,12 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   # You can download the jit model from
   # https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
 
+  GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
+  cd icefall-asr-librispeech-zipformer-2023-05-15
+  git lfs pull --include "exp/jit_script.pt"
+  cd ..
+  ln -s icefall-asr-librispeech-zipformer-2023-05-15 exp
+
   # We will get librilight_asr_cuts_{subset}.jsonl.gz
   # saved in $output_dir/manifests
   log "Stage 3: Perform speech recognition on splitted chunks"
