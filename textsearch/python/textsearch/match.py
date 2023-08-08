@@ -1091,6 +1091,10 @@ def _split_into_segments(
 
     for seg in segments:
         begin_pos = aligns[seg[0]]["ref_pos"]
+        # trim the prefix space
+        while chr(target_source.binary_text[begin_pos]) == " ":
+            begin_pos += 1
+
         while begin_pos >= 1:
             current_token = chr(target_source.binary_text[begin_pos - 1])
             if current_token in PUCTUATIONS["left"]:
@@ -1132,6 +1136,9 @@ def _split_into_segments(
             end_time = aligns[succeeding_index]["hyp_time"]
 
         hyp_begin_pos = aligns[seg[0]]["hyp_pos"]
+        while chr(query_source.binary_text[hyp_begin_pos]) == " ":
+            hyp_begin_pos += 1
+
         hyp_end_pos = aligns[seg[1]]["hyp_pos"]
         hyp = "".join(
             [
