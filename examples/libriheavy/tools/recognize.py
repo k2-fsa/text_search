@@ -44,7 +44,7 @@ from typing import List, Optional, Tuple
 from pathlib import Path
 
 from asr_datamodule import AsrDataModule
-from beam_search import greedy_search_batch
+from beam_search import greedy_search_batch, modified_beam_search
 from utils import SymbolTable, convert_timestamp
 
 from lhotse import CutSet, combine, load_manifest_lazy
@@ -132,6 +132,7 @@ def get_parser():
         default="greedy_search",
         help="""Possible values are:
           - greedy_search
+          - modified_beam_search
         """,
     )
 
@@ -144,6 +145,7 @@ def get_params() -> AttributeDict:
         {
             "subsampling_factor": 4,
             "frame_shift_ms": 10,
+            "beam_size": 4,
         }
     )
     return params
@@ -189,6 +191,13 @@ def decode_one_batch(
             model=model,
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
+        )
+    elif params.decoding_method == "modified_beam_search":
+        res = modified_beam_search(
+            model=model,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam_size,
         )
     else:
         raise ValueError(
@@ -313,7 +322,10 @@ def run(rank, world_size, args, in_cuts):
     )
     logging.info("Decoding started")
 
-    assert params.decoding_method in ("greedy_search",), params.decoding_method
+    assert params.decoding_method in (
+        "greedy_search",
+        "modified_beam_search",
+    ), params.decoding_method
 
     token_table = SymbolTable.from_file(params.tokens)
 
@@ -419,8 +431,4 @@ torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
-    logging.basicConfig(format=formatter, level=logging.INFO)
     main()
