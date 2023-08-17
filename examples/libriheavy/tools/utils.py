@@ -19,19 +19,42 @@ import os
 from dataclasses import dataclass, field
 from typing import Dict, Generic, List, Optional, TypeVar, Union
 
+import torch
 
-@dataclass
-class DecodingResults:
-    # timestamps[i][k] contains the frame number on which tokens[i][k]
-    # is decoded
-    timestamps: List[List[int]]
 
-    # hyps[i] is the recognition results, i.e., word IDs or token IDs
-    # for the i-th utterance with fast_beam_search_nbest_LG.
-    hyps: List[List[int]]
+def row_splits_to_row_ids(row_splits: torch.Tensor) -> torch.Tensor:
+    """
+    Convert row_splits to row_ids.
+    row_splits and row_ids are used to describe the shape of a ragged tensor
+    (you can treat it as a list of tensor), a ragged tensor looks like follows,
+    (the real underlying values are stored in a 1 dimension tensor):
 
-    # scores[i][k] contains the log-prob of tokens[i][k]
-    scores: Optional[List[List[float]]] = None
+    [[0, 1, 2],[3, 4, 5], [], [6, 7]]
+
+    Note, the number of elements in dimension 1 are different. The row_splits of
+    above tensor is [0, 3, 6, 6, 8], it tells the boundaries of each sub-tensor.
+    The length of row_splits equals to the number of sub-tensor plus 1.
+
+    sub-tensor[i] = tensor[row_splits[i]: row_splits[i+1]]
+
+    The row_ids give the information that which sub-tensor current element
+    belongs to, so its length equals to the total number of elements in the
+    ragged tensor. The row_ids of above tensor should be
+    [0, 0, 0, 1, 1, 1, 3, 3], it means the first 3 elements
+    belong to the first sub-tensor, the following 3 elements belong to the
+    second sub-tensor, the third sub-tensor is empty, the last 2 elements belong
+    to the forth sub-tensor.
+    """
+    row_splits = row_splits.cpu()
+    assert row_splits.dim() == 1, row_splits.dim()
+    assert row_splits.numel() >= 2, row_splits.numel()
+    assert row_splits[0] == 0, row_splits[0]
+
+    num_elms = row_splits[-1]
+    row_ids = torch.empty(num_elms, dtype=torch.int64)
+    for i in range(row_splits.numel() - 1):
+        row_ids[row_splits[i] : row_splits[i + 1]] = i
+    return row_ids
 
 
 def convert_timestamp(
