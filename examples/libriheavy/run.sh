@@ -37,10 +37,10 @@ stop_stage=5
 # |-- recording2book_medium.json
 # `-- recording2book_small.json
 
-corpus_dir=$PWD/download/libri-light
-text_dir=$PWD/download/librilight_text
+corpus_dir=download/libri-light
+text_dir=download/librilight_text
 # Path to save the manifests
-output_dir=$PWD/data
+output_dir=data
 
 . parse_options.sh || exit 1
 
