@@ -136,20 +136,26 @@ def is_overlap(
     index = bisect_left(ranges, query)
     if index == 0:
         if ranges:
+            qlen = query[1] - query[0]
+            rlen = ranges[0][1] - ranges[0][0]
             is_overlap = (
-                query[1] - ranges[0][0] > (query[1] - query[0]) * overlap_ratio
+                query[1] - ranges[0][0] > min(qlen, rlen) * overlap_ratio
             )
     elif index == len(ranges):
+        qlen = query[1] - query[0]
+        rlen = ranges[index - 1][1] - ranges[index - 1][0]
         is_overlap = (
             ranges[index - 1][1] - query[0]
-            > (query[1] - query[0]) * overlap_ratio
+            > min(qlen, rlen) * overlap_ratio
         )
     else:
+        qlen = query[1] - query[0]
+        rlen1 = ranges[index - 1][1] - ranges[index - 1][0]
+        rlen2 = ranges[index][1] - ranges[index][0]
         is_overlap = (
-            ranges[index - 1][1] - query[0]
-            > (query[1] - query[0]) * overlap_ratio
+            ranges[index - 1][1] - query[0] > min(qlen, rlen1) * overlap_ratio
         ) or (
-            query[1] - ranges[index][0] > (query[1] - query[0]) * overlap_ratio
+            query[1] - ranges[index][0] > min(qlen, rlen2) * overlap_ratio
         )
 
     if not is_overlap:
