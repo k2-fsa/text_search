@@ -59,6 +59,9 @@ class SpeechRecognitionDataset(K2SpeechRecognitionDataset):
         # Sort the cuts by duration so that the first one determines the batch time dimensions.
         # cuts = cuts.sort_by_duration(ascending=False)
 
+        # Resample cuts since the ASR model works at 16kHz
+        cuts = cuts.resample(16000)
+
         # Get a tensor with batched feature matrices, shape (B, T, F)
         # Collation performs auto-padding, if necessary.
         input_tpl = self.input_strategy(cuts)
