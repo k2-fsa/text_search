@@ -145,44 +145,6 @@ def _break_query(
     # [(query_start, query_end, target_start, target_end)]
     segments: List[Tuple[int, int, int, int]] = []
 
-    def add_segments(
-        query_start,
-        query_end,
-        target_start,
-        target_end,
-        segment_length,
-        segments,
-    ):
-        num_chunk = (query_end - query_start) // segment_length
-        if num_chunk > 0:
-            for i in range(num_chunk):
-                real_target_end = (
-                    target_start + segment_length
-                    if target_start + segment_length < target_end
-                    else target_end
-                )
-                segments.append(
-                    (
-                        query_start,
-                        query_start + segment_length,
-                        target_start,
-                        real_target_end,
-                    )
-                )
-                query_start += segment_length
-                target_start += segment_length
-        # if the remaining part is smaller than segment_length // 4, we will
-        # append it to the last segment rather than creating a new segment.
-        if segments and query_end - query_start < segment_length // 4:
-            segments[-1] = (
-                segments[-1][0],
-                query_end,
-                segments[-1][2],
-                target_end,
-            )
-        else:
-            segments.append((query_start, query_end, target_start, target_end))
-
     target_doc_id = sourced_text.doc[matched_points[max_item[0]][1]]
     target_base = sourced_text.doc_splits[target_doc_id]
     next_target_base = sourced_text.doc_splits[target_doc_id + 1]
@@ -207,7 +169,15 @@ def _break_query(
     for ind in range(max_item[0], max_item[1]):
         if matched_points[ind][0] - prev_break_point[0] > segment_length:
             if ind == max_item[0]:
-                continue
+                segments.append(
+                    (
+                        prev_break_point[0],
+                        matched_points[ind][0],
+                        prev_break_point[1],
+                        matched_points[ind][1],
+                    )
+                )
+                prev_break_point = matched_points[ind]
             else:
                 query_start = prev_break_point[0]
                 query_end = matched_points[ind - 1][0]
@@ -217,17 +187,16 @@ def _break_query(
                 ratio = (target_end - target_start) / (query_end - query_start)
                 half = reference_length_difference / 2
                 if ratio < 1 - half or ratio > 1 + half:
+                    logging.debug(
+                        f"Invalid ratio for segment: "
+                        f"{query_start, query_end, target_start, target_end}"
+                    )
                     continue
 
-                prev_break_point = (query_end, target_end)
-                add_segments(
-                    query_start,
-                    query_end,
-                    target_start,
-                    target_end,
-                    segment_length,
-                    segments,
+                segments.append(
+                    (query_start, query_end, target_start, target_end)
                 )
+                prev_break_point = (query_end, target_end)
 
     query_start, target_start = prev_break_point
     query_end = next_query_base
@@ -248,14 +217,7 @@ def _break_query(
         else:
             segments.append((query_start, query_end, target_start, target_end))
     else:
-        add_segments(
-            query_start,
-            query_end,
-            target_start,
-            target_end,
-            segment_length,
-            segments,
-        )
+        segments.append((query_start, query_end, target_start, target_end))
     return segments
 
 
@@ -470,15 +432,22 @@ def align_queries(
         # in sourced_text
         matched_points = get_longest_increasing_pairs(seq1, seq2)
 
-        if len(matched_points) == 0:
-            continue
-
         # In the algorithm of `find_close_matches`,
         # `sourced_text.binary_text.size - 1` means no close_matches
-        trim_pos = len(matched_points) - 1
-        while matched_points[trim_pos][1] == sourced_text.binary_text.size - 1:
-            trim_pos -= 1
-        matched_points = matched_points[0:trim_pos]
+        if len(matched_points) != 0:
+            trim_pos = len(matched_points) - 1
+            while (
+                matched_points[trim_pos][1] == sourced_text.binary_text.size - 1
+            ):
+                trim_pos -= 1
+            matched_points = matched_points[0:trim_pos]
+
+        if len(matched_points) == 0:
+            logging.warning(
+                f"Skipping query {q}, no matched points between query and target"
+                f"in close_matches."
+            )
+            continue
 
         # The following code guarantees the matched points are in the same
         # reference document. We will choose the reference document that matches

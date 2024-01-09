@@ -88,7 +88,7 @@ def get_params() -> AttributeDict:
             # you can find the docs in textsearch/match.py#align_queries
             "num_close_matches": 2,
             "segment_length": 5000,
-            "reference_length_difference": 0.1,
+            "reference_length_difference": 0.4,
             "min_matched_query_ratio": 0.33,
             # parameters for splitting aligned queries
             # you can find the docs in textsearch/match.py#split_aligned_queries
@@ -188,6 +188,7 @@ def load_data(
             books.append(book)
 
     if not transcripts:
+        logging.warning(f"No transcripts found.")
         return {}
 
     logging.debug(f"Worker[{worker_index}] loading cuts and books done.")
@@ -457,9 +458,7 @@ def main():
     batch_cuts = []
     logging.info(f"Start processing...")
     for i, cut in enumerate(raw_cuts):
-        if len(batch_cuts) < params.batch_size:
-            batch_cuts.append(cut)
-        else:
+        if len(batch_cuts) >= params.batch_size:
             process_one_batch(
                 params,
                 batch_cuts=batch_cuts,
@@ -469,6 +468,7 @@ def main():
             )
             batch_cuts = []
             logging.info(f"Number of cuts have been loaded is {i}")
+        batch_cuts.append(cut)
     if len(batch_cuts):
         process_one_batch(
             params,
