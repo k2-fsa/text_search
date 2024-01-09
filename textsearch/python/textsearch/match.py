@@ -1048,13 +1048,28 @@ def _split_into_segments(
     # Handle the overlapping
     # Caution: Don't modified selected_ranges, it will be manipulated in
     # `is_overlap` and will be always kept sorted.
-    selected_ranges: List[Tuple[int, int]] = []
+    # Don't modified selected_indexes also, it will be manipulated in `is_overlap`
+    # according to selected_ranges.
+    selected_ranges: List[Tuple[float, float]] = []
+    selected_indexes: List[int] = []
     segments = []
+    overlapped_segments = []
     for r in candidates:
-        if not is_overlap(
-            selected_ranges, query=(r[0], r[1]), overlap_ratio=0.5
-        ):
+        status, index = is_overlap(
+            selected_ranges,
+            selected_indexes,
+            query=(aligns[r[0]]["hyp_time"], aligns[r[1]]["hyp_time"]),
+            segment_index=len(segments),
+            overlap_ratio=0.15,
+        )
+        if status:
+            if index is not None:
+                overlapped_segments.append(index)
+                segments.append(r)
+        else:
             segments.append(r)
+    for index in sorted(overlapped_segments, reverse=True):
+        segments.pop(index)
 
     results = []
 
