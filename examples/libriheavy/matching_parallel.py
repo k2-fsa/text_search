@@ -381,12 +381,11 @@ def main():
     batch_cuts = []
     logging.info(f"Start processing...")
     for i, cut in enumerate(raw_cuts):
-        if len(batch_cuts) < params.batch_size:
-            batch_cuts.append(cut)
-        else:
+        if len(batch_cuts) >= params.batch_size:
             cuts_queue.put(batch_cuts)
             batch_cuts = []
             logging.info(f"Number of cuts have been loaded is {i}")
+        batch_cuts.append(cut)
     if len(batch_cuts):
         cuts_queue.put(batch_cuts)
     cuts_queue.put(None)
