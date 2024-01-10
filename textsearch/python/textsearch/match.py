@@ -957,6 +957,7 @@ def _split_into_segments(
     preceding_context_length: int = 1000,
     timestamp_position: str = "middle",  # previous, middle, current
     silence_length_to_break: float = 0.6,  # in second
+    overlap_ratio: float = 0.35,  # percentage
     min_duration: float = 2,  # in second
     max_duration: float = 30,  # in second
     expected_duration: Tuple[float, float] = (5, 20),  # in second
@@ -1060,7 +1061,7 @@ def _split_into_segments(
             selected_indexes,
             query=(aligns[r[0]]["hyp_time"], aligns[r[1]]["hyp_time"]),
             segment_index=len(segments),
-            overlap_ratio=0.15,
+            overlap_ratio=overlap_ratio,
         )
         if status:
             if index is not None:
@@ -1201,6 +1202,7 @@ def _split_helper(
     preceding_context_length: int,
     timestamp_position: str,
     silence_length_to_break: float,
+    overlap_ratio: float,
     min_duration: float,
     max_duration: float,
     expected_duration: Tuple[float, float],
@@ -1217,6 +1219,7 @@ def _split_helper(
         preceding_context_length=preceding_context_length,
         timestamp_position=timestamp_position,
         silence_length_to_break=silence_length_to_break,
+        overlap_ratio=overlap_ratio,
         min_duration=min_duration,
         max_duration=max_duration,
         expected_duration=expected_duration,
@@ -1234,6 +1237,7 @@ def split_aligned_queries(
     preceding_context_length: int = 1000,
     timestamp_position: str = "current",  # previous, middle, current
     silence_length_to_break: float = 0.6,  # in second
+    overlap_ratio: float = 0.35,
     min_duration: float = 2,  # in second
     max_duration: float = 30,  # in second
     expected_duration: Tuple[float, float] = (5, 20),  # in second
@@ -1326,6 +1330,7 @@ def split_aligned_queries(
                     preceding_context_length,
                     timestamp_position,
                     silence_length_to_break,
+                    overlap_ratio,
                     min_duration,
                     max_duration,
                     expected_duration,

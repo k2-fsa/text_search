@@ -184,16 +184,6 @@ def is_overlap(
         )
         if is_overlap:
             return True, None
-        is_overlap = (
-            ranges[index - 1][1] - query[0]
-            > (ranges[index - 1][1] - ranges[index - 1][0]) * overlap_ratio
-        )
-        if is_overlap:
-            ranges.insert(index, query)
-            ranges.pop(index - 1)
-            indexes.insert(index, segment_index)
-            dindex = indexes.pop(index - 1)
-            return True, dindex
 
         is_overlap = (
             query[1] - ranges[index][0] > (query[1] - query[0]) * overlap_ratio
@@ -201,20 +191,36 @@ def is_overlap(
         if is_overlap:
             return True, None
 
-        is_overlap = (
+        is_overlap_left = (
+            ranges[index - 1][1] - query[0]
+            > (ranges[index - 1][1] - ranges[index - 1][0]) * overlap_ratio
+        )
+
+        is_overlap_right = (
             query[1] - ranges[index][0]
             > (ranges[index][1] - ranges[index][0]) * overlap_ratio
         )
-        if is_overlap:
-            ranges.insert(index, query)
-            ranges.pop(index + 1)
-            indexes.insert(index, segment_index)
-            dindex = indexes.pop(index + 1)
-            return True, dindex
+
+        if is_overlap_left or is_overlap_right:
+            if is_overlap_left and not is_overlap_right:
+                ranges.insert(index, query)
+                ranges.pop(index - 1)
+                indexes.insert(index, segment_index)
+                dindex = indexes.pop(index - 1)
+                return True, dindex
+            elif is_overlap_right and not is_overlap_left:
+                ranges.insert(index, query)
+                ranges.pop(index + 1)
+                indexes.insert(index, segment_index)
+                dindex = indexes.pop(index + 1)
+                return True, dindex
+            else:
+                return True, None
         else:
             ranges.insert(index, query)
             indexes.insert(index, segment_index)
             return False, None
+
     ranges.insert(index, query)
     indexes.insert(index, segment_index)
     return False, None
@@ -228,7 +234,7 @@ def is_punctuation(c: str, eos_only: bool = False) -> bool:
       c:
         The given character.
       eos_only:
-        If True the punctuations are only those indicating end of a sentence (.?! for now).
+        If True the punctuations are only those indicating end of a sentence (,.?! for now).
     """
     if eos_only:
         return c in PUCTUATIONS["eos"]
