@@ -88,13 +88,14 @@ def get_params() -> AttributeDict:
             # you can find the docs in textsearch/match.py#align_queries
             "num_close_matches": 2,
             "segment_length": 5000,
-            "reference_length_difference": 0.1,
+            "reference_length_difference": 0.4,
             "min_matched_query_ratio": 0.33,
             # parameters for splitting aligned queries
             # you can find the docs in textsearch/match.py#split_aligned_queries
             "preceding_context_length": 1000,
             "timestamp_position": "current",
             "silence_length_to_break": 0.45,
+            "overlap_ratio": 0.4,
             "min_duration": 2,
             "max_duration": 30,
             "expected_duration": (5, 20),
@@ -188,6 +189,7 @@ def load_data(
             books.append(book)
 
     if not transcripts:
+        logging.warning(f"No transcripts found.")
         return {}
 
     logging.debug(f"Worker[{worker_index}] loading cuts and books done.")
@@ -321,6 +323,7 @@ def split(
         preceding_context_length=params.preceding_context_length,
         timestamp_position=params.timestamp_position,
         silence_length_to_break=params.silence_length_to_break,
+        overlap_ratio=params.overlap_ratio,
         min_duration=params.min_duration,
         max_duration=params.max_duration,
         expected_duration=params.expected_duration,
@@ -457,9 +460,7 @@ def main():
     batch_cuts = []
     logging.info(f"Start processing...")
     for i, cut in enumerate(raw_cuts):
-        if len(batch_cuts) < params.batch_size:
-            batch_cuts.append(cut)
-        else:
+        if len(batch_cuts) >= params.batch_size:
             process_one_batch(
                 params,
                 batch_cuts=batch_cuts,
@@ -469,6 +470,7 @@ def main():
             )
             batch_cuts = []
             logging.info(f"Number of cuts have been loaded is {i}")
+        batch_cuts.append(cut)
     if len(batch_cuts):
         process_one_batch(
             params,

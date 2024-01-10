@@ -10,8 +10,8 @@ from _textsearch import row_ids_to_row_splits as _row_ids_to_row_splits
 Pathlike = Union[str, Path]
 
 PUCTUATIONS = {
-    "all": set("',.;?!():-<>/\"，。；？！（）：-《》【】”“"),
-    "eos": set(".?!。？！"),
+    "all": set("'.;?!():-<>/\"。；？！（）：-《》【】”“"),
+    "eos": set(".?,，!。？！"),
     "left": set("\"'(<《【“"),
     "right": set("\"')>》】”"),
 }
@@ -108,53 +108,101 @@ def row_ids_to_row_splits(row_ids: np.ndarray) -> np.ndarray:
 
 
 def is_overlap(
-    ranges: List[Tuple[int, int]],
-    query: Tuple[int, int],
+    ranges: List[Tuple[float, float]],
+    indexes: List[int],
+    query: Tuple[float, float],
+    segment_index: int,
     overlap_ratio: float = 0.25,
-) -> bool:
+) -> Tuple[bool, Union[int, None]]:
     """
-    Return if the given range overlaps with the existing ranges.
+    Return True if the given range overlaps with the existing ranges.
 
     Caution:
-      `ranges` will be modified in this function (when returning False)
+      `ranges` and `indexes` will be modified in this function.
 
     Note: overlapping here means the length of overlapping area is greater than
     some threshold (currently, the threshold is `overlap_ratio` multiply the length
-    of the shorter overlapping ranges).
+    of the query or existing ranges).
 
     Args:
       ranges:
         The existing ranges, it is sorted in ascending order on input, and we will
         keep it sorted in this function.
+      indexes:
+        The index (into the selected segments) of each range belongs to.
       query:
         The given range.
+      segment_index:
+        The index (into the selected segments) of query to be inserted.
+      overlap_ratio:
+        The ratio of overlapping part to the query or existing segments. If the
+        ratio is greater than `overlap_ratio` we will drop the query or existing
+        segment.
 
     Return:
-      Return True if having overlap otherwise False.
+      Return (False, None) if no overlapping between query and existing ranges.
+      Return (True, None) if the ratio of overlapping part to query is greater
+      than `overlap_ratio`.
+      Return (True, dindex) if the ratio of overlapping part to existing range
+      is greater than `overlap_ratio`, `dindex` is the index (can get from indexes)
+      of the existing range.
     """
-    is_overlap = False
     index = bisect_left(ranges, query)
-    if index == 0:
-        if ranges:
-            is_overlap = (
-                query[1] - ranges[0][0] > (query[1] - query[0]) * overlap_ratio
-            )
-    elif index == len(ranges):
+    if not ranges:
+        ranges.insert(index, query)
+        indexes.insert(index, segment_index)
+        return False, None
+
+    # overlapping on query
+    if index > 0:
         is_overlap = (
             ranges[index - 1][1] - query[0]
             > (query[1] - query[0]) * overlap_ratio
         )
-    else:
+        if is_overlap:
+            return True, None
+
+    if index < len(ranges):
         is_overlap = (
-            ranges[index - 1][1] - query[0]
-            > (query[1] - query[0]) * overlap_ratio
-        ) or (
             query[1] - ranges[index][0] > (query[1] - query[0]) * overlap_ratio
         )
+        if is_overlap:
+            return True, None
 
-    if not is_overlap:
+    # overlapping on existing ranges
+    is_overlap_left = False
+    if index > 0:
+        is_overlap_left = (
+            ranges[index - 1][1] - query[0]
+            > (ranges[index - 1][1] - ranges[index - 1][0]) * overlap_ratio
+        )
+
+    is_overlap_right = False
+    if index < len(ranges):
+        is_overlap_right = (
+            query[1] - ranges[index][0]
+            > (ranges[index][1] - ranges[index][0]) * overlap_ratio
+        )
+
+    if is_overlap_left or is_overlap_right:
+        if is_overlap_left and not is_overlap_right:
+            ranges.insert(index, query)
+            ranges.pop(index - 1)
+            indexes.insert(index, segment_index)
+            dindex = indexes.pop(index - 1)
+            return True, dindex
+        elif is_overlap_right and not is_overlap_left:
+            ranges.insert(index, query)
+            ranges.pop(index + 1)
+            indexes.insert(index, segment_index)
+            dindex = indexes.pop(index + 1)
+            return True, dindex
+        else:
+            return True, None
+    else:
         ranges.insert(index, query)
-    return is_overlap
+        indexes.insert(index, segment_index)
+        return False, None
 
 
 def is_punctuation(c: str, eos_only: bool = False) -> bool:
@@ -165,7 +213,7 @@ def is_punctuation(c: str, eos_only: bool = False) -> bool:
       c:
         The given character.
       eos_only:
-        If True the punctuations are only those indicating end of a sentence (.?! for now).
+        If True the punctuations are only those indicating end of a sentence (,.?! for now).
     """
     if eos_only:
         return c in PUCTUATIONS["eos"]

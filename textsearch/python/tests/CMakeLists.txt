@@ -19,6 +19,7 @@ endfunction()
 if(TS_ENABLE_TESTS)
   set(test_srcs
     test_find_close_matches.py
+    test_is_overlap.py
     test_levenshtein_distance.py
     test_match.py
     test_row_ids_to_row_splits.py
