@@ -113,26 +113,39 @@ def is_overlap(
     query: Tuple[float, float],
     segment_index: int,
     overlap_ratio: float = 0.25,
-) -> Tuple[bool, int]:
+) -> Tuple[bool, Union[int, None]]:
     """
-    Return if the given range overlaps with the existing ranges.
+    Return True if the given range overlaps with the existing ranges.
 
     Caution:
-      `ranges` will be modified in this function (when returning False)
+      `ranges` and `indexes` will be modified in this function.
 
     Note: overlapping here means the length of overlapping area is greater than
     some threshold (currently, the threshold is `overlap_ratio` multiply the length
-    of the shorter overlapping ranges).
+    of the query or existing ranges).
 
     Args:
       ranges:
         The existing ranges, it is sorted in ascending order on input, and we will
         keep it sorted in this function.
+      indexes:
+        The index (into the selected segments) of each range belongs to.
       query:
         The given range.
+      segment_index:
+        The index (into the selected segments) of query to be inserted.
+      overlap_ratio:
+        The ratio of overlapping part to the query or existing segments. If the
+        ratio is greater than `overlap_ratio` we will drop the query or existing
+        segment.
 
     Return:
-      Return True if having overlap otherwise False.
+      Return (False, None) if no overlapping between query and existing ranges.
+      Return (True, None) if the ratio of overlapping part to query is greater
+      than `overlap_ratio`.
+      Return (True, dindex) if the ratio of overlapping part to existing range
+      is greater than `overlap_ratio`, `dindex` is the index (can get from indexes)
+      of the existing range.
     """
     index = bisect_left(ranges, query)
     if not ranges:

@@ -994,6 +994,10 @@ def _split_into_segments(
         preceding or succeeding silence length greater than this value, we will
         add it as a possible breaking point.
         Caution: Only be used when there are no punctuations in target_source.
+      overlap_ratio:
+        The ratio of overlapping part to the query or existing segments. If the
+        ratio is greater than `overlap_ratio` we will drop the query or existing
+        segment.
       min_duration:
         The minimum duration (in second) allowed for a segment.
       max_duration:
@@ -1276,6 +1280,10 @@ def split_aligned_queries(
         preceding or succeeding silence length greater than this value, we will
         add it as a possible breaking point.
         Caution: Only be used when there are no punctuations in target_source.
+      overlap_ratio:
+        The ratio of overlapping part to the query or existing segments. If the
+        ratio is greater than `overlap_ratio` we will drop the query or existing
+        segment.
       min_duration:
         The minimum duration (in second) allowed for a segment.
       max_duration:
