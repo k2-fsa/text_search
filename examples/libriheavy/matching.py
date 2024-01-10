@@ -95,7 +95,7 @@ def get_params() -> AttributeDict:
             "preceding_context_length": 1000,
             "timestamp_position": "current",
             "silence_length_to_break": 0.45,
-            "overlap_ratio": 0.35,
+            "overlap_ratio": 0.4,
             "min_duration": 2,
             "max_duration": 30,
             "expected_duration": (5, 20),
