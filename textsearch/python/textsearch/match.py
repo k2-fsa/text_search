@@ -1122,7 +1122,7 @@ def _split_into_segments(
                 "current",
             )
             start_time = aligns[seg[0]]["hyp_time"]
-            end_time = aligns[succeeding_index]["hyp_time"]
+            end_time = aligns[seg[1]]["hyp_time"]
 
         hyp_begin_pos = aligns[seg[0]]["hyp_pos"]
         while chr(query_source.binary_text[hyp_begin_pos]) == " ":

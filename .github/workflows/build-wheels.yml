@@ -45,8 +45,8 @@ jobs:
 
       - name: Publish wheels to PyPI
         env:
-          TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-          TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
         run: |
           python3 -m pip install --upgrade pip
           python3 -m pip install wheel twine setuptools
@@ -64,7 +64,7 @@ jobs:
       - name: Publish sdist to PyPI
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
-          TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-          TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
         run: |
           twine upload dist/fasttextsearch-*.tar.gz
