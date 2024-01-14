@@ -10,7 +10,7 @@ from _textsearch import row_ids_to_row_splits as _row_ids_to_row_splits
 Pathlike = Union[str, Path]
 
 PUCTUATIONS = {
-    "all": set("'.;?!():-<>/\"。；？！（）：-《》【】”“"),
+    "all": set("'.,;?!():-<>/\"。，；？！（）：-《》【】”“"),
     "eos": set(".?,，!。？！"),
     "left": set("\"'(<《【“"),
     "right": set("\"')>》】”"),
