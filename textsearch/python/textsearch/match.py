@@ -704,55 +704,71 @@ def _get_segment_candidates(
         # punctuation
         prev_punctuation = 0
         j = align["ref_pos"] - 1
+        num_space_behind_period = 0
         while j >= 0:
             current_token = chr(target_source.binary_text[j])
             if is_punctuation(current_token, eos_only=True):
-                tmp = "".join(
-                    [
-                        chr(x)
-                        for x in target_source.binary_text[
-                            j - period_pattern_length : j + 1
+                if current_token == ".":
+                    tmp = "".join(
+                        [
+                            chr(x)
+                            for x in target_source.binary_text[
+                                j - period_pattern_length : j + 1
+                            ]
                         ]
-                    ]
-                )
-                if current_token != "." or (
-                    current_token == "."
-                    and period_patterns.search(tmp) is not None
-                ):
+                    )
+                    if (
+                        period_patterns.search(tmp) is not None
+                        and num_space_behind_period >= 1
+                    ):
+                        prev_punctuation = punctuation_score
+                        break
+                    else:
+                        break
+                else:
                     prev_punctuation = punctuation_score
                     break
-                else:
-                    j -= 1
             elif current_token == " " or is_punctuation(current_token):
+                if current_token == " ":
+                    num_space_behind_period += 1
                 j -= 1
             else:
                 break
 
         succ_punctuation = 0
         j = align["ref_pos"] + 1
+        followed_by_period = False
+        followed_by_other_eos = False
+        num_space_behind_period = 0
         while j < target_source.binary_text.size:
             current_token = chr(target_source.binary_text[j])
             if is_punctuation(current_token, eos_only=True):
-                tmp = "".join(
-                    [
-                        chr(x)
-                        for x in target_source.binary_text[
-                            j - period_pattern_length : j + 1
+                if current_token == ".":
+                    tmp = "".join(
+                        [
+                            chr(x)
+                            for x in target_source.binary_text[
+                                j - period_pattern_length : j + 1
+                            ]
                         ]
-                    ]
-                )
-                if current_token != "." or (
-                    current_token == "."
-                    and period_patterns.search(tmp) is not None
-                ):
+                    )
+                    if period_patterns.search(tmp) is not None:
+                        followed_by_period = True
+                else:
+                    followed_by_other_eos = True
+                j += 1
+            elif current_token == " " or is_punctuation(current_token):
+                if current_token == " ":
+                    num_space_behind_period += 1
+                j += 1
+            else:
+                if (
+                    followed_by_period and num_space_behind_period >= 1
+                ) or followed_by_other_eos:
                     succ_punctuation = punctuation_score
                     break
                 else:
-                    j += 1
-            elif current_token == " " or is_punctuation(current_token):
-                j += 1
-            else:
-                break
+                    break
 
         begin_score = (
             prev_silence
