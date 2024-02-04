@@ -94,6 +94,8 @@ def get_params() -> AttributeDict:
             # you can find the docs in textsearch/match.py#split_aligned_queries
             "preceding_context_length": 1000,
             "timestamp_position": "current",
+            "duration_add_on_left": 0.0,
+            "duration_add_on_right": 0.5,
             "silence_length_to_break": 0.45,
             "overlap_ratio": 0.5,
             "min_duration": 2,
@@ -322,6 +324,8 @@ def split(
         process_pool=process_pool,
         preceding_context_length=params.preceding_context_length,
         timestamp_position=params.timestamp_position,
+        duration_add_on_left=params.duration_add_on_left,
+        duration_add_on_right=params.duration_add_on_right,
         silence_length_to_break=params.silence_length_to_break,
         overlap_ratio=params.overlap_ratio,
         min_duration=params.min_duration,
