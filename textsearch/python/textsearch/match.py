@@ -972,6 +972,8 @@ def _split_into_segments(
     alignment: Tuple[Tuple[int, int], List[Dict[str, Any]]],
     preceding_context_length: int = 1000,
     timestamp_position: str = "middle",  # previous, middle, current
+    duration_add_on_left: float = 0.0,  # in second
+    duration_add_on_right: float = 0.5,  # in second
     silence_length_to_break: float = 0.6,  # in second
     overlap_ratio: float = 0.35,  # percentage
     min_duration: float = 2,  # in second
@@ -1005,6 +1007,12 @@ def _split_into_segments(
         `previous` the `start_time` is the timestamp of token in `begin_pos - 1`
         if it equals to `middle`, the `start_time` is the averaged timestamp of
         tokens in `begin_pos` and `begin_pos - 1`.
+      duration_add_on_left:
+        The extra duration added on the left (in second), to compensate the inaccuracy
+        of timestamps of the ASR model.
+      duration_add_on_right:
+        The extra duration added on the right (in second), to compensate the inaccuracy
+        of timestamps of the ASR model.
       silence_length_to_break:
         A threshold for deciding the possible breaking points, if a position has
         preceding or succeeding silence length greater than this value, we will
@@ -1138,7 +1146,7 @@ def _split_into_segments(
                 "current",
             )
             start_time = aligns[seg[0]]["hyp_time"]
-            end_time = aligns[seg[1]]["hyp_time"]
+            end_time = aligns[succeeding_index]["hyp_time"]
 
         hyp_begin_pos = aligns[seg[0]]["hyp_pos"]
         while chr(query_source.binary_text[hyp_begin_pos]) == " ":
@@ -1221,6 +1229,8 @@ def _split_helper(
     alignment: Tuple[Tuple[int, int], List[Dict[str, Any]]],
     preceding_context_length: int,
     timestamp_position: str,
+    duration_add_on_left: float,
+    duration_add_on_right: float,
     silence_length_to_break: float,
     overlap_ratio: float,
     min_duration: float,
@@ -1238,6 +1248,8 @@ def _split_helper(
         alignment,
         preceding_context_length=preceding_context_length,
         timestamp_position=timestamp_position,
+        duration_add_on_left=duration_add_on_left,
+        duration_add_on_right=duration_add_on_right,
         silence_length_to_break=silence_length_to_break,
         overlap_ratio=overlap_ratio,
         min_duration=min_duration,
@@ -1256,6 +1268,8 @@ def split_aligned_queries(
     process_pool: Optional[Pool] = None,
     preceding_context_length: int = 1000,
     timestamp_position: str = "current",  # previous, middle, current
+    duration_add_on_left: float = 0.0,  # in second
+    duration_add_on_right: float = 0.5,  # in second
     silence_length_to_break: float = 0.6,  # in second
     overlap_ratio: float = 0.35,
     min_duration: float = 2,  # in second
@@ -1353,6 +1367,8 @@ def split_aligned_queries(
                     alignments[i],
                     preceding_context_length,
                     timestamp_position,
+                    duration_add_on_left,
+                    duration_add_on_right,
                     silence_length_to_break,
                     overlap_ratio,
                     min_duration,
