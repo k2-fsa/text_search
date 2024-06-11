@@ -94,8 +94,8 @@ def get_params() -> AttributeDict:
             # you can find the docs in textsearch/match.py#split_aligned_queries
             "preceding_context_length": 1000,
             "timestamp_position": "current",
-            "duration_add_on_left": 0.0,
-            "duration_add_on_right": 0.5,
+            "duration_add_on_left": -0.4,
+            "duration_add_on_right": -0.8,
             "silence_length_to_break": 0.45,
             "overlap_ratio": 0.25,
             "min_duration": 2,
