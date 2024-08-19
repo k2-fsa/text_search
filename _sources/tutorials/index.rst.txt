@@ -1,6 +1,8 @@
 Tutorials
 ============
 
+This section provides tutorials for core concepts of text_search as follows.
+
 .. toctree::
    :maxdepth: 2
 

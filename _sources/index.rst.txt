@@ -10,6 +10,6 @@ Welcome to fasttextsearch's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-   ./install/index.rst
+   ./getting-started/index.rst
    ./tutorials/index.rst
    ./python-api/index.rst

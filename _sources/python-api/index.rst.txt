@@ -3,7 +3,7 @@ Python API
 
 This section lists Python APIs in `fasttextsearch`_.
 
-.. currentmodule:: textsearch
+.. currentmodule:: textsearch.python.textsearch
 
 
 create_suffix_array
@@ -25,3 +25,15 @@ get_nice_alignments
 -------------------
 
 .. autofunction:: get_nice_alignments
+
+align_queries
+-------------------
+.. autofunction:: align_queries
+
+get_longest_increasing_pairs
+-------------------
+.. autofunction:: get_longest_increasing_pairs
+
+split_aligned_queries
+-------------------
+.. autofunction:: split_aligned_queries

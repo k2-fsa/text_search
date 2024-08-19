@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>For developers &mdash; fasttextsearch 0.12 documentation</title>
+  <title>Getting started &mdash; fasttextsearch 0.12 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/tabs.css" type="text/css" />
@@ -20,7 +20,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Tutorials" href="../tutorials/index.html" />
-    <link rel="prev" title="Installation" href="index.html" /> 
+    <link rel="prev" title="Welcome to fasttextsearch’s documentation!" href="../index.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -43,8 +43,13 @@
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
-<li class="toctree-l1 current"><a class="reference internal" href="index.html">Installation</a><ul class="current">
-<li class="toctree-l2 current"><a class="current reference internal" href="#">For developers</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Getting started</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#about">About</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#installation">Installation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#with-pip">With pip</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#for-developers">For developers</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
@@ -65,10 +70,9 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="index.html">Installation</a> &raquo;</li>
-      <li>For developers</li>
+      <li>Getting started</li>
       <li class="wy-breadcrumbs-aside">
-              <a href="https://github.com/danpovey/text_search/blob/master/docs/source/install/developers.rst" class="fa fa-github"> Edit on GitHub</a>
+              <a href="https://github.com/danpovey/text_search/blob/master/docs/source/getting-started/index.rst" class="fa fa-github"> Edit on GitHub</a>
       </li>
   </ul>
   <hr/>
@@ -76,12 +80,27 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="for-developers">
-<h1>For developers<a class="headerlink" href="#for-developers" title="Permalink to this headline"></a></h1>
+  <section id="getting-started">
+<h1>Getting started<a class="headerlink" href="#getting-started" title="Permalink to this headline"></a></h1>
+<section id="about">
+<h2>About<a class="headerlink" href="#about" title="Permalink to this headline"></a></h2>
+<p>The text_search project can be used to create ASR (automatic speech recognition) dataset with long-form audios and even longer texts.</p>
+<p>The core of text_search is a general audio alignment pipeline, which aims to align the audio files to the corresponding text and split them into short segments, while also excluding segments of audio that do not correspond exactly with the aligned text.</p>
+</section>
+<section id="installation">
+<h2>Installation<a class="headerlink" href="#installation" title="Permalink to this headline"></a></h2>
+<section id="with-pip">
+<h3>With pip<a class="headerlink" href="#with-pip" title="Permalink to this headline"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>fasttextsearch
+</pre></div>
+</div>
+</section>
+<section id="for-developers">
+<h3>For developers<a class="headerlink" href="#for-developers" title="Permalink to this headline"></a></h3>
 <p>Please use the following commands to install <a class="reference external" href="https://github.com/danpovey/text_search">fasttextsearch</a>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>numpy
 
-git<span class="w"> </span>clone<span class="w"> </span>https://github.com/danpovey/text_search
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/k2-fsa/text_search
 <span class="nb">cd</span><span class="w"> </span>text_search
 
 mkdir<span class="w"> </span>build
@@ -103,13 +122,20 @@ make<span class="w"> </span><span class="nb">test</span>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>/Users/fangjun/open-source/text_search/textsearch/python/textsearch/__init__.py
 </pre></div>
 </div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>We did not use either <cite>python3 setup.py install</cite> or <cite>pip install</cite>.
+We only set the environment variable <cite>PYTHONPATH</cite>.</p>
+</div>
+</section>
+</section>
 </section>
 
 
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="index.html" class="btn btn-neutral float-left" title="Installation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../index.html" class="btn btn-neutral float-left" title="Welcome to fasttextsearch’s documentation!" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
         <a href="../tutorials/index.html" class="btn btn-neutral float-right" title="Tutorials" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
