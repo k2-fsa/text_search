@@ -181,10 +181,13 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    encoder_out, encoder_out_lens = model.encoder(
-        features=feature,
-        feature_lengths=feature_lens,
-    )
+    #encoder_out, encoder_out_lens = model.encoder(
+    #    features=feature,
+    #    feature_lengths=feature_lens,
+    #)
+
+    # to use a different model than the default this fix is needed 
+    encoder_out, encoder_out_lens = model.encoder(feature,feature_lens,)
 
     if params.decoding_method == "greedy_search":
         res = greedy_search_batch(
