@@ -430,8 +430,7 @@ def main():
         run(rank=0, world_size=world_size, args=args, in_cuts=in_cuts)
 
 
-torch.set_num_threads(1)
-torch.set_num_interop_threads(1)
-
 if __name__ == "__main__":
+    torch.set_num_threads(1)
+    torch.set_num_interop_threads(1)
     main()
