@@ -1209,8 +1209,8 @@ def _split_into_segments(
             {
                 "begin_byte": begin_pos,
                 "end_byte": end_pos,
-                "start_time": start_time,
-                "duration": math.floor(1000 * (end_time - start_time)) / 1000,
+                "start_time": start_time + duration_add_on_left,
+                "duration": math.floor(1000 * (end_time + duration_add_on_right - start_time)) / 1000,
                 "hyp": hyp,
                 "ref": ref,
                 "pre_ref": preceding_ref,

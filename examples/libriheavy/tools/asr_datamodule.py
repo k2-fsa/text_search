@@ -27,6 +27,7 @@ from lhotse import CutSet, Fbank, FbankConfig
 from lhotse.cut import Cut
 from lhotse.dataset import (
     K2SpeechRecognitionDataset,
+    DynamicBucketingSampler,
     SimpleCutSampler,
 )
 from lhotse.dataset.input_strategies import (
@@ -36,53 +37,6 @@ from lhotse.dataset.input_strategies import (
 from torch.utils.data import DataLoader
 
 from textsearch.utils import str2bool
-
-
-class SpeechRecognitionDataset(K2SpeechRecognitionDataset):
-    def __init__(
-        self,
-        return_cuts: bool = False,
-        input_strategy: BatchIO = OnTheFlyFeatures(Fbank()),
-    ):
-        super().__init__(return_cuts=return_cuts, input_strategy=input_strategy)
-
-    def __getitem__(
-        self, cuts: CutSet
-    ) -> Dict[str, Union[torch.Tensor, List[Cut]]]:
-        """
-        Return a new batch, with the batch size automatically determined using the constraints
-        of max_frames and max_cuts.
-        """
-        self.hdf5_fix.update()
-
-        # Note: don't sort cuts here
-        # Sort the cuts by duration so that the first one determines the batch time dimensions.
-        # cuts = cuts.sort_by_duration(ascending=False)
-
-        # Resample cuts since the ASR model works at 16kHz
-        cuts = cuts.resample(16000)
-
-        # Get a tensor with batched feature matrices, shape (B, T, F)
-        # Collation performs auto-padding, if necessary.
-        input_tpl = self.input_strategy(cuts)
-        if len(input_tpl) == 3:
-            # An input strategy with fault tolerant audio reading mode.
-            # "cuts" may be a subset of the original "cuts" variable,
-            # that only has cuts for which we succesfully read the audio.
-            inputs, _, cuts = input_tpl
-        else:
-            inputs, _ = input_tpl
-
-        # Get a dict of tensors that encode the positional information about supervisions
-        # in the batch of feature matrices. The tensors are named "sequence_idx",
-        # "start_frame/sample" and "num_frames/samples".
-        supervision_intervals = self.input_strategy.supervision_intervals(cuts)
-
-        batch = {"inputs": inputs, "supervisions": supervision_intervals}
-        if self.return_cuts:
-            batch["supervisions"]["cut"] = [cut for cut in cuts]
-
-        return batch
 
 
 class AsrDataModule:
@@ -118,6 +72,13 @@ class AsrDataModule:
             "were used to construct it.",
         )
         group.add_argument(
+            "--bucketing-sampler",
+            type=str2bool,
+            default=True,
+            help="When enabled, the batches will come from buckets of "
+            "similar duration (saves padding frames).",
+        )
+        group.add_argument(
             "--num-mel-bins",
             type=int,
             default=80,
@@ -130,22 +91,36 @@ class AsrDataModule:
             help="The number of training dataloader workers that "
             "collect the batches.",
         )
+        group.add_argument(
+            "--batch-size",
+            type=int,
+            default=10,
+            help="The number of utterances in a batch",
+        )
 
     def dataloaders(self, cuts: CutSet) -> DataLoader:
         logging.debug("About to create test dataset")
-        dataset = SpeechRecognitionDataset(
+        dataset = K2SpeechRecognitionDataset(
             input_strategy=OnTheFlyFeatures(
                 Fbank(FbankConfig(num_mel_bins=self.args.num_mel_bins))
             ),
             return_cuts=self.args.return_cuts,
         )
 
-        sampler = SimpleCutSampler(
-            cuts,
-            max_duration=self.args.max_duration,
-            shuffle=False,
-            drop_last=False,
-        )
+        if self.args.bucketing_sampler:
+            logging.info("Using DynamicBucketingSampler.")
+            sampler = DynamicBucketingSampler(
+                cuts,
+                max_duration=self.args.max_duration,
+                shuffle=False,
+                drop_last=False,
+            )
+        else:
+            logging.info("Using SimpleCutSampler.")
+            sampler = SimpleCutSampler(
+                cuts,
+                max_cuts=self.args.batch_size,
+            )
 
         logging.debug("About to create test dataloader")
         dl = DataLoader(
