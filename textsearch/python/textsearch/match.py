@@ -200,11 +200,17 @@ def _break_query(
 
     query_start, target_start = prev_break_point
     query_end = next_query_base
+    target_end = next_target_base
 
-    target_end = target_start + (query_end - query_start)
-    target_end = (
-        target_end if target_end <= next_target_base else next_target_base
-    )
+    # Cancel the following operations to keep the full range of target text
+    # as a resolution to end-text dropping problem
+    # eg. query = "...(long text < breaking thredshold) Hi how are you"
+    # target = "...(long text < breaking thredshold) Hi uh how are you"
+
+    # target_end = target_start + (query_end - query_start)
+    # target_end = (
+    #     target_end if target_end <= next_target_base else next_target_base
+    # )
 
     if query_end - query_start < segment_length // 4:
         if segments:
